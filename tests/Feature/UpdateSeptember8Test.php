@@ -187,9 +187,9 @@ class UpdateSeptember8Test extends TestCase
 
         $this->get('/dashboard')
             ->assertOk()
-            ->assertSee('Kenaikan Jabatan/Pangkat')
-            ->assertSee('Proyeksi Kenaikan Jabatan/Pangkat')
-            ->assertSee('Kenaikan Jabatan/Pangkat Terdekat');
+            ->assertSee('Kenaikan Pangkat '.now()->year)
+            ->assertSee('Proyeksi Kenaikan Pangkat')
+            ->assertSee('Proyeksi Kenaikan Pangkat Terdekat');
 
         // endpoint statistik memuat data kenaikan
         $this->getJson('/api/dashboard/statistics')
@@ -203,7 +203,7 @@ class UpdateSeptember8Test extends TestCase
 
         $this->get('/employees?naik=1')
             ->assertOk()
-            ->assertSee('Kenaikan jabatan/pangkat');
+            ->assertSee('Kenaikan pangkat ≤ 1 tahun');
     }
 
     /* ================= OTP RESEND ================= */

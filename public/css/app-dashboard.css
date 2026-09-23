@@ -1862,8 +1862,10 @@ body.auth-page { overflow: hidden; }
    - input OTP login
    ========================================================= */
 
-/* ---------- Stat-card clickable ---------- */
-a.stat-card-link { text-decoration: none; color: inherit; }
+/* ---------- Stat-card clickable ----------
+   Link pembungkus kartu dibuat block + height 100% supaya semua kartu
+   dalam satu baris punya tinggi yang sama (rata atas-bawah). */
+a.stat-card-link { text-decoration: none; color: inherit; display: block; height: 100%; }
 .stat-card.stat-clickable { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; cursor: pointer; }
 .stat-card.stat-clickable:hover {
     transform: translateY(-3px);
@@ -2707,3 +2709,86 @@ a.stat-card-link { text-decoration: none; color: inherit; }
         max-height: none;
     }
 }
+
+/* ---------- Dropdown Multi-Select Checklist (filter) ----------
+   Panel terbuka saat tombol diklik; tinggi panel mengikuti jumlah
+   opsi (maks. 280px lalu scroll) dan opsi dipilih dengan mencentang. */
+.ms-dropdown { position: relative; }
+.ms-dropdown .ms-toggle {
+    cursor: pointer;
+    background-color: #fff;
+    font-weight: 500;
+    min-height: 31px;
+    padding-right: 30px;
+}
+.ms-dropdown .ms-toggle::after { display: none; } /* sembunyikan caret bootstrap */
+.ms-dropdown .ms-caret {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #6b7280;
+    transition: transform .18s ease;
+    pointer-events: none;
+}
+.ms-dropdown.open .ms-caret { transform: translateY(-50%) rotate(180deg); }
+.ms-dropdown.has-selection .ms-toggle {
+    border-color: var(--osdmrb-primary-light);
+    color: var(--osdmrb-primary);
+    font-weight: 600;
+}
+.ms-dropdown .ms-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid var(--osdmrb-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(14, 42, 55, .14);
+    z-index: 1060;
+    padding: 6px;
+}
+.ms-dropdown.open .ms-panel { display: block; }
+.ms-dropdown .ms-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 6px 6px;
+    border-bottom: 1px dashed var(--osdmrb-border);
+    margin-bottom: 4px;
+}
+.ms-dropdown .ms-action-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--osdmrb-primary-light);
+    text-decoration: none;
+}
+.ms-dropdown .ms-action-btn:hover { color: var(--osdmrb-primary); text-decoration: underline; }
+.ms-dropdown .ms-options {
+    max-height: 280px;      /* panel "kebuka banyak" sesuai isi, scroll bila lebih */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ms-dropdown .ms-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+}
+.ms-dropdown .ms-option:hover { background: rgba(22, 61, 79, .07); }
+.ms-dropdown .ms-option input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
+.ms-dropdown .ms-option-label { line-height: 1.25; overflow-wrap: anywhere; }

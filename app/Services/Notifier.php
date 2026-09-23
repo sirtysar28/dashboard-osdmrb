@@ -74,6 +74,7 @@ class Notifier
             'register' => 'notify_register',
             'sop' => 'notify_sop',
             'letter' => 'notify_letter',
+            'leave' => 'notify_leave',
         ];
 
         if (isset($toggleMap[$type]) && ! Setting::bool($toggleMap[$type])) {

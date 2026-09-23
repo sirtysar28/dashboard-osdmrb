@@ -56,7 +56,7 @@ class EmployeesExport implements FromQuery, WithMapping, WithHeadings, WithTitle
             'TMT Jabatan',
             'TMT Golongan',
             'TMT CPNS',
-            'TMT PNS',
+            'TMT ASN',
             'Batas Pensiun',
             'NPWP',
             'No. Karpeg',

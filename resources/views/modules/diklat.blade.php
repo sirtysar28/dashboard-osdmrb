@@ -39,8 +39,9 @@
                     <thead>
                         <tr>
                             <th>Pegawai</th>
-                            <th>Nama Diklat</th>
+                            <th>Nama Diklat / Seminar / Pelatihan</th>
                             <th>Jenis</th>
+                            <th>Lingkup</th>
                             <th>Penyelenggara</th>
                             <th class="text-center">Tahun</th>
                             <th class="text-center">Sertifikat</th>
@@ -59,6 +60,11 @@
                                     @endif
                                 </td>
                                 <td><span class="badge bg-{{ $training->type_badge }}">{{ $training->type_label }}</span></td>
+                                <td>
+                                    <span class="badge {{ $training->scope === \App\Models\EmployeeTraining::SCOPE_ABROAD ? 'bg-danger' : 'bg-secondary bg-opacity-50' }}">
+                                        {{ $training->scope_label }}
+                                    </span>
+                                </td>
                                 <td>{{ $training->organizer ?? '-' }}</td>
                                 <td class="text-center">{{ $training->year ?? '-' }}</td>
                                 <td class="text-center">
@@ -83,7 +89,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $canManage ? 7 : 6 }}" class="text-center py-5">
+                                <td colspan="{{ $canManage ? 8 : 7 }}" class="text-center py-5">
                                     <i class="bi bi-mortarboard text-muted" style="font-size: 2.4rem;"></i>
                                     <p class="text-muted mt-2 mb-1"><strong>Belum ada data diklat</strong></p>
                                     <p class="text-muted small mb-0">Data riwayat pelatihan pegawai akan ditampilkan di sini.</p>
@@ -166,13 +172,22 @@
                                 @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="diklatType">Jenis Diklat</label>
+                                <label class="form-label" for="diklatType">Jenis</label>
                                 <select name="type" id="diklatType" class="form-select @error('type') is-invalid @enderror">
                                     @foreach (\App\Models\EmployeeTraining::TYPES as $value => $label)
                                         <option value="{{ $value }}" {{ old('type', 'TEKNIS') === $value ? 'selected' : '' }}>{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="diklatScope">Lingkup Penyelenggaraan</label>
+                                <select name="scope" id="diklatScope" class="form-select @error('scope') is-invalid @enderror">
+                                    @foreach (\App\Models\EmployeeTraining::scopeOptions() as $value => $label)
+                                        <option value="{{ $value }}" {{ old('scope', \App\Models\EmployeeTraining::SCOPE_DOMESTIC) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                @error('scope')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="diklatOrganizer">Penyelenggara</label>

@@ -82,7 +82,7 @@ class Setting extends Model
     public static function menuVisible(string $menu): bool
     {
         // menu yang secara default disembunyikan (fitur belum digunakan)
-        $hiddenByDefault = ['letters', 'archives', 'reformasi_birokrasi', 'manajemen_talenta', 'diklat'];
+        $hiddenByDefault = ['letters', 'archives', 'reformasi_birokrasi', 'manajemen_talenta', 'diklat', 'cuti'];
 
         $value = static::get("menu_{$menu}");
 

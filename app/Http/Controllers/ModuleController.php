@@ -16,6 +16,8 @@ use Illuminate\View\View;
 /**
  * Controller modul-menu baru Biro OSDMRB:
  * - Analisis Jabatan Fungsional
+ * - Analisis Jabatan Struktural
+ * - Analisis Jabatan Pelaksana
  * - Reformasi Birokrasi
  * - Manajemen Talenta
  * - Diklat & Pengembangan Kompetensi
@@ -60,7 +62,7 @@ class ModuleController extends Controller
        ========================================================= */
     public function analisisJabatanStruktural(): View
     {
-        // Jabatan struktural (JPT & pejabat administratif) + jumlah pemangku aktif
+        // Jabatan struktural (Eselon I–IV) + jumlah pemangku aktif
         $positions = Position::whereHas('positionType', fn ($q) => $q->where('code', 'STRUKTURAL'))
             ->with(['jobLevel', 'positionType'])
             ->withCount(['employeePositions as holders_count' => fn ($q) => $q->where('is_current', true)])
@@ -71,16 +73,17 @@ class ModuleController extends Controller
         $eselonDist = Employee::query()
             ->where('is_active', true)
             ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
-            ->whereIn('eselon', ['II', 'III', 'IV'])
+            ->whereIn('eselon', ['I', 'II', 'III', 'IV'])
             ->selectRaw("eselon as label, count(*) as total")
             ->groupBy('eselon')
             ->orderBy('eselon')
             ->get()
             ->map(fn ($row) => [
                 'label' => match ($row->label) {
-                    'II' => 'Eselon II (JPT Pratama / Administrator tinggi)',
-                    'III' => 'Eselon III (Administrator)',
-                    'IV' => 'Eselon IV (Pengawas)',
+                    'I' => 'Eselon I (Sekjen, Ditjen, Itjen)',
+                    'II' => 'Eselon II (Direktur, Kabiro, Kapus, dll.)',
+                    'III' => 'Eselon III (Kabag, Kabalai)',
+                    'IV' => 'Eselon IV (Kasubag)',
                     default => 'Eselon '.$row->label,
                 },
                 'total' => (int) $row->total,
@@ -90,7 +93,7 @@ class ModuleController extends Controller
         $perUnit = Employee::query()
             ->where('employees.is_active', true)
             ->where('employees.employee_type', '!=', Employee::TYPE_NON_ASN)
-            ->whereIn('employees.eselon', ['II', 'III', 'IV'])
+            ->whereIn('employees.eselon', ['I', 'II', 'III', 'IV'])
             ->join('units', 'units.id', '=', 'employees.unit_id')
             ->selectRaw('units.name as label, count(*) as total')
             ->groupBy('units.name')
@@ -106,6 +109,56 @@ class ModuleController extends Controller
 
         return view('modules.analisis-jabatan-struktural', compact(
             'positions', 'eselonDist', 'perUnit', 'totalPejabat', 'totalJabatan', 'totalPemangku', 'jabatanKosong'
+        ));
+    }
+
+    /* =========================================================
+       1c. ANALISIS JABATAN PELAKSANA
+       ========================================================= */
+    public function analisisJabatanPelaksana(): View
+    {
+        // Jabatan pelaksana / fungsional umum + jumlah pemangku aktif
+        $positions = Position::whereHas('positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
+            ->with(['jobLevel', 'positionType'])
+            ->withCount(['employeePositions as holders_count' => fn ($q) => $q->where('is_current', true)])
+            ->orderBy('code')
+            ->get();
+
+        // Distribusi pemangku per jenjang pelaksana (dari jabatan saat ini)
+        $jenjang = Employee::query()
+            ->where('employees.is_active', true)
+            ->where('employees.employee_type', '!=', Employee::TYPE_NON_ASN)
+            ->whereHas('currentPosition.position.positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
+            ->join('employee_positions', 'employee_positions.employee_id', '=', 'employees.id')
+            ->join('positions', 'positions.id', '=', 'employee_positions.position_id')
+            ->join('job_levels', 'job_levels.id', '=', 'positions.job_level_id')
+            ->where('employee_positions.is_current', true)
+            ->selectRaw('job_levels.name as label, count(*) as total')
+            ->groupBy('job_levels.name')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total]);
+
+        // Sebaran pelaksana per unit kerja
+        $perUnit = Employee::query()
+            ->where('employees.is_active', true)
+            ->where('employees.employee_type', '!=', Employee::TYPE_NON_ASN)
+            ->whereHas('currentPosition.position.positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
+            ->join('units', 'units.id', '=', 'employees.unit_id')
+            ->selectRaw('units.name as label, count(*) as total')
+            ->groupBy('units.name')
+            ->orderByDesc('total')
+            ->limit(12)
+            ->get()
+            ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total]);
+
+        $totalJabatan = $positions->count();
+        $totalPemangku = $positions->sum('holders_count');
+        $jabatanKosong = $positions->where('holders_count', 0)->count();
+        $totalPelaksana = $jenjang->sum('total');
+
+        return view('modules.analisis-jabatan-pelaksana', compact(
+            'positions', 'jenjang', 'perUnit', 'totalJabatan', 'totalPemangku', 'jabatanKosong', 'totalPelaksana'
         ));
     }
 
@@ -213,14 +266,19 @@ class ModuleController extends Controller
     }
 
     /**
-     * Simpan riwayat diklat pegawai baru (admin & biro SDM).
+     * Simpan riwayat diklat/seminar/pelatihan pegawai baru.
+     * Admin & Biro SDM dapat menginput untuk pegawai mana pun;
+     * pegawai dapat menambahkan sendiri pada profilnya (update profil).
      */
     public function diklatStore(Request $request)
     {
+        $user = $request->user();
+
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],
             'name' => ['required', 'max:255'],
             'type' => ['required', Rule::in(array_keys(EmployeeTraining::TYPES))],
+            'scope' => ['nullable', Rule::in(array_keys(EmployeeTraining::scopeOptions()))],
             'organizer' => ['nullable', 'max:255'],
             'year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
             'start_date' => ['nullable', 'date'],
@@ -229,19 +287,28 @@ class ModuleController extends Controller
             'certificate_number' => ['nullable', 'max:100'],
             'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'], // sertifikat maks 10 MB
         ], [
-            'employee_id.required' => 'Pegawai peserta diklat wajib dipilih.',
-            'name.required' => 'Nama diklat wajib diisi.',
+            'employee_id.required' => 'Pegawai peserta wajib dipilih.',
+            'name.required' => 'Nama diklat/seminar/pelatihan wajib diisi.',
             'end_date.after_or_equal' => 'Tanggal selesai harus setelah tanggal mulai.',
         ]);
 
+        // pegawai biasa hanya boleh untuk dirinya sendiri
+        abort_unless($user->isPrivileged() || (int) $validated['employee_id'] === (int) $user->employee_id,
+            403, 'Anda hanya dapat menambahkan riwayat untuk profil Anda sendiri.');
+
+        $validated['scope'] = $validated['scope'] ?? EmployeeTraining::SCOPE_DOMESTIC;
         $validated['file_path'] = $request->file('file')?->store('diklat', 'public');
         $validated['file_name'] = $request->file('file')?->getClientOriginalName();
-        $validated['uploaded_by'] = $request->user()->id;
+        $validated['uploaded_by'] = $user->id;
 
         EmployeeTraining::create($validated);
 
-        return redirect()->route('modules.diklat')
-            ->with('success', 'Riwayat diklat pegawai berhasil ditambahkan.');
+        // kembali ke halaman asal (modul diklat atau profil pegawai)
+        $redirect = $request->input('from') === 'profile'
+            ? back()
+            : redirect()->route('modules.diklat');
+
+        return $redirect->with('success', 'Riwayat diklat/seminar/pelatihan berhasil ditambahkan.');
     }
 
     /**
@@ -256,18 +323,22 @@ class ModuleController extends Controller
     }
 
     /**
-     * Hapus riwayat diklat (admin & biro SDM).
+     * Hapus riwayat diklat (admin & biro SDM, atau pegawai pemilik riwayat).
      */
-    public function diklatDestroy(EmployeeTraining $training)
+    public function diklatDestroy(Request $request, EmployeeTraining $training)
     {
+        $user = $request->user();
+
+        abort_unless($user->isPrivileged() || $training->employee_id === $user->employee_id,
+            403, 'Anda tidak memiliki akses untuk menghapus riwayat ini.');
+
         if ($training->file_path) {
             Storage::disk('public')->delete($training->file_path);
         }
 
         $training->delete();
 
-        return redirect()->route('modules.diklat')
-            ->with('success', 'Riwayat diklat berhasil dihapus.');
+        return back()->with('success', 'Riwayat diklat berhasil dihapus.');
     }
 
     /* =========================================================

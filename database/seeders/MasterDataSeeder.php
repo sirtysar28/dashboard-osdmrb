@@ -182,7 +182,7 @@ class MasterDataSeeder extends Seeder
         /* ================= STATUS KEPEGAWAIAN ================= */
 
         foreach ([
-            ['PNS', 'PNS'],
+            ['ASN', 'ASN'],
             ['CPNS', 'CPNS'],
             ['PPPK_PENUH', 'PPPK Penuh Waktu'],
             ['PPPK_PARUH', 'PPPK Paruh Waktu'],
@@ -193,12 +193,17 @@ class MasterDataSeeder extends Seeder
             );
         }
 
-        /* ================= JENIS & LEVEL JABATAN ================= */
+        /* ================= JENIS & LEVEL JABATAN =================
+
+           Jenis jabatan ASN:
+           - STRUKTURAL : pejabat negatif pengelola — Eselon I s.d. IV
+           - FUNGSIONAL : ahli pertama, muda, madya, penyelia, terampil
+           - PELAKSANA  : non-eselon & non-fungsional (staf pelaksana) */
 
         foreach ([
-            ['STRUKTURAL', 'Struktural'],
-            ['FUNGSIONAL', 'Fungsional Tertentu'],
-            ['PELAKSANA', 'Pelaksana / Fungsional Umum'],
+            ['STRUKTURAL', 'Struktural (Eselon I–IV)'],
+            ['FUNGSIONAL', 'Fungsional'],
+            ['PELAKSANA', 'Pelaksana (Non-Eselon & Non-Fungsional)'],
         ] as [$code, $name]) {
             PositionType::updateOrCreate(
                 ['code' => $code],
@@ -207,18 +212,19 @@ class MasterDataSeeder extends Seeder
         }
 
         $jobLevels = [
-            ['JPT_MADYA', 'JPT Madya', 1],
-            ['JPT_PRATAMA', 'JPT Pratama', 2],
-            ['ADMINISTRATOR', 'Administrator', 3],
-            ['PENGAWAS', 'Pengawas', 4],
-            ['AHLI_UTAMA', 'Fungsional Ahli Utama', 5],
-            ['AHLI_MADYA', 'Fungsional Madya', 6],
-            ['AHLI_MUDA', 'Fungsional Muda', 7],
-            ['AHLI_PERTAMA', 'Fungsional Pertama', 8],
-            ['PELAKSANA', 'Fungsional Umum', 9],
-            ['PELAKSANA_PENYELIA', 'Pelaksana Penyelia', 10],
-            ['PELAKSANA_MAHIR', 'Pelaksana Mahir', 11],
-            ['PELAKSANA_TERAMPIL', 'Pelaksana Terampil', 12],
+            // struktural
+            ['ESELON_I', 'Eselon I', 1],
+            ['ESELON_II', 'Eselon II', 2],
+            ['ESELON_III', 'Eselon III', 3],
+            ['ESELON_IV', 'Eselon IV', 4],
+            // fungsional
+            ['AHLI_PERTAMA', 'Fungsional Ahli Pertama', 5],
+            ['AHLI_MUDA', 'Fungsional Ahli Muda', 6],
+            ['AHLI_MADYA', 'Fungsional Ahli Madya', 7],
+            ['PENYELIA', 'Fungsional Penyelia', 8],
+            ['TERAMPIL', 'Fungsional Terampil', 9],
+            // pelaksana: non-eselon & non-fungsional
+            ['PELAKSANA', 'Pelaksana (Non-Eselon & Non-Fungsional)', 10],
         ];
 
         foreach ($jobLevels as [$code, $name, $order]) {
@@ -231,11 +237,24 @@ class MasterDataSeeder extends Seeder
         /* ================= JABATAN ================= */
 
         $positions = [
-            // struktural
-            ['STR-KABIRO', 'Kepala Biro OSDMRB', 'STRUKTURAL', 'JPT_PRATAMA'],
-            ['STR-KABAG', 'Kepala Bagian', 'STRUKTURAL', 'ADMINISTRATOR'],
-            ['STR-KASUBAG', 'Kepala Subbagian', 'STRUKTURAL', 'PENGAWAS'],
-            // fungsional tertentu
+            /* ---- Struktural Eselon I ---- */
+            ['STR-SEKJEN', 'Sekretaris Jenderal', 'STRUKTURAL', 'ESELON_I'],
+            ['STR-DIRJEN', 'Direktur Jenderal', 'STRUKTURAL', 'ESELON_I'],
+            ['STR-ITJEN', 'Inspektur Jenderal', 'STRUKTURAL', 'ESELON_I'],
+            /* ---- Struktural Eselon II ---- */
+            ['STR-DIREKTUR', 'Direktur', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-SETDITJEN', 'Sekretaris Direktur Jenderal', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-KAPUS', 'Kepala Pusat', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-KABIRO', 'Kepala Biro', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-INSPEKTUR', 'Inspektur', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-SETITJEN', 'Sekretaris Inspektur Jenderal', 'STRUKTURAL', 'ESELON_II'],
+            ['STR-KABALBES', 'Kepala Balai Besar', 'STRUKTURAL', 'ESELON_II'],
+            /* ---- Struktural Eselon III ---- */
+            ['STR-KABAG', 'Kepala Bagian', 'STRUKTURAL', 'ESELON_III'],
+            ['STR-KABALAI', 'Kepala Balai', 'STRUKTURAL', 'ESELON_III'],
+            /* ---- Struktural Eselon IV ---- */
+            ['STR-KASUBAG', 'Kepala Subbagian', 'STRUKTURAL', 'ESELON_IV'],
+            /* ---- Fungsional ---- */
             ['FUN-ANALIS-MADYA', 'Analis Sumber Daya Manusia Ahli Madya', 'FUNGSIONAL', 'AHLI_MADYA'],
             ['FUN-ANALIS-MUDA', 'Analis Sumber Daya Manusia Ahli Muda', 'FUNGSIONAL', 'AHLI_MUDA'],
             ['FUN-ANALIS-PERTAMA', 'Analis Sumber Daya Manusia Ahli Pertama', 'FUNGSIONAL', 'AHLI_PERTAMA'],
@@ -243,12 +262,13 @@ class MasterDataSeeder extends Seeder
             ['FUN-AUDITOR-MUDA', 'Auditor Ahli Muda', 'FUNGSIONAL', 'AHLI_MUDA'],
             ['FUN-PRANATA-MUDA', 'Pranata Komputer Ahli Muda', 'FUNGSIONAL', 'AHLI_MUDA'],
             ['FUN-ARSIPARIS-PERTAMA', 'Arsiparis Ahli Pertama', 'FUNGSIONAL', 'AHLI_PERTAMA'],
-            // pelaksana / fungsional umum
+            ['FUN-PENYELIA', 'Fungsional Penyelia', 'FUNGSIONAL', 'PENYELIA'],
+            ['FUN-TERAMPIL', 'Fungsional Terampil', 'FUNGSIONAL', 'TERAMPIL'],
+            /* ---- Pelaksana (non-eselon & non-fungsional) ---- */
             ['PEL-PENGELOLA', 'Pengelola Kepegawaian', 'PELAKSANA', 'PELAKSANA'],
             ['PEL-PPPK-UMUM', 'PPPK Fungsional Umum', 'PELAKSANA', 'PELAKSANA'],
-            ['PEL-PPPK-PENYELIA', 'PPPK Pelaksana Penyelia', 'PELAKSANA', 'PELAKSANA_PENYELIA'],
-            ['PEL-PPPK-TERAMPIL', 'PPPK Pelaksana Terampil', 'PELAKSANA', 'PELAKSANA_TERAMPIL'],
-            ['PEL-PPPK-MAHIR', 'PPPK Pelaksana Mahir', 'PELAKSANA', 'PELAKSANA_MAHIR'],
+            ['PEL-PPPK-PENYELIA', 'PPPK Pelaksana Penyelia', 'PELAKSANA', 'PENYELIA'],
+            ['PEL-PPPK-TERAMPIL', 'PPPK Pelaksana Terampil', 'PELAKSANA', 'TERAMPIL'],
         ];
 
         $typeIds = PositionType::pluck('id', 'code');

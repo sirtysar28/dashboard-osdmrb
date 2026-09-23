@@ -27,6 +27,7 @@ class SettingsController extends Controller
         return view('settings.appearance', [
             'menus' => [
                 ['key' => 'letters', 'label' => 'Layanan Persuratan', 'desc' => 'Menu Persuratan, Ajukan Surat & Jenis Surat', 'icon' => 'bi-envelope-paper'],
+                ['key' => 'cuti', 'label' => 'Pengajuan Cuti', 'desc' => 'Pengajuan, verifikasi & persetujuan cuti pegawai (menunggu kepastian ttd digital)', 'icon' => 'bi-calendar2-week'],
                 ['key' => 'archives', 'label' => 'Kearsipan & Upload Dokumen', 'desc' => 'Menu Kearsipan, Peminjaman Arsip & upload dokumen', 'icon' => 'bi-archive'],
                 ['key' => 'reformasi_birokrasi', 'label' => 'Reformasi Birokrasi', 'desc' => 'Modul Reformasi Birokrasi', 'icon' => 'bi-arrow-repeat'],
                 ['key' => 'manajemen_talenta', 'label' => 'Manajemen Talenta', 'desc' => 'Modul Manajemen Talenta', 'icon' => 'bi-stars'],
@@ -56,7 +57,7 @@ class SettingsController extends Controller
         ]);
 
         // simpan visibilitas menu
-        foreach (['letters', 'archives', 'reformasi_birokrasi', 'manajemen_talenta', 'diklat'] as $menu) {
+        foreach (['letters', 'cuti', 'archives', 'reformasi_birokrasi', 'manajemen_talenta', 'diklat'] as $menu) {
             Setting::set("menu_{$menu}", $request->input("menus.{$menu}") === '1');
         }
 
@@ -181,7 +182,7 @@ class SettingsController extends Controller
             'smtp_enabled', 'smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username',
             'smtp_password', 'smtp_from_address', 'smtp_from_name',
             'notify_login', 'notify_password', 'notify_register', 'notify_sop', 'notify_letter',
-            'notify_recipient', 'otp_enabled',
+            'notify_leave', 'notify_recipient', 'otp_enabled',
         ])
             ->mapWithKeys(fn ($key) => [$key => Setting::get($key)])
             ->all();
@@ -205,6 +206,7 @@ class SettingsController extends Controller
             'notify_register' => ['nullable', 'boolean'],
             'notify_sop' => ['nullable', 'boolean'],
             'notify_letter' => ['nullable', 'boolean'],
+            'notify_leave' => ['nullable', 'boolean'],
             'notify_recipient' => ['nullable', 'max:255'],
             'otp_enabled' => ['nullable', 'boolean'],
             'test_email' => ['nullable', 'email'],
@@ -218,7 +220,7 @@ class SettingsController extends Controller
             unset($validated['smtp_password']);
         }
 
-        foreach (['smtp_enabled', 'notify_login', 'notify_password', 'notify_register', 'notify_sop', 'notify_letter', 'otp_enabled'] as $toggle) {
+        foreach (['smtp_enabled', 'notify_login', 'notify_password', 'notify_register', 'notify_sop', 'notify_letter', 'notify_leave', 'otp_enabled'] as $toggle) {
             $validated[$toggle] = $request->boolean($toggle);
         }
 

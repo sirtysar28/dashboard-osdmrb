@@ -12,9 +12,17 @@ class Employee extends Model
     public const TYPE_ASN = 'asn';
     public const TYPE_NON_ASN = 'non_asn';
 
+    /** Pilihan kemampuan Bahasa Inggris (data personal). */
+    public const ENGLISH_SKILLS = [
+        'tidak' => 'Tidak Bisa',
+        'dasar' => 'Dasar',
+        'menengah' => 'Menengah',
+        'lanjutan' => 'Lanjutan',
+    ];
+
     protected $fillable = [
         'nip', 'name', 'email', 'phone', 'gender', 'birth_place', 'birth_date',
-        'religion', 'address',
+        'religion', 'address', 'swimming_skill', 'english_skill',
         'employment_status_id', 'rank_id', 'education_level_id', 'unit_id',
         'eselon', 'functional_level', 'position_name', 'tmt_jabatan', 'tmt_golongan',
         'tmt_cpns', 'tmt_pns', 'retirement_date', 'next_promotion_date',
@@ -76,6 +84,18 @@ class Employee extends Model
         return $this->hasMany(Letter::class);
     }
 
+    /** Riwayat diklat / seminar / pelatihan pegawai. */
+    public function trainings(): HasMany
+    {
+        return $this->hasMany(EmployeeTraining::class)->orderByDesc('year')->orderByDesc('start_date');
+    }
+
+    /** Riwayat kenaikan pangkat (mis. III/a -> III/b). */
+    public function rankHistories(): HasMany
+    {
+        return $this->hasMany(EmployeeRankHistory::class)->orderByDesc('effective_date');
+    }
+
     public function user(): HasOne
     {
         return $this->hasOne(User::class);
@@ -88,9 +108,41 @@ class Employee extends Model
         return $this->birth_date?->age;
     }
 
+    /**
+     * Masa kerja "X Tahun Y Bulan" dihitung dari TMT CPNS
+     * (kolom TMT PNS dipakai bila TMT CPNS kosong) — Bagian I formulir cuti.
+     */
+    public function getMasaKerjaAttribute(): string
+    {
+        $start = $this->tmt_cpns ?? $this->tmt_pns;
+
+        if (! $start) {
+            return '-';
+        }
+
+        $years = $start->diffInYears(now());
+        $months = $start->copy()->addYears($years)->diffInMonths(now());
+
+        return "{$years} Tahun {$months} Bulan";
+    }
+
     public function getGenderLabelAttribute(): string
     {
         return $this->gender === 'P' ? 'Perempuan' : 'Laki-Laki';
+    }
+
+    public function getSwimmingSkillLabelAttribute(): string
+    {
+        return match ($this->swimming_skill) {
+            'bisa' => 'Bisa Berenang',
+            'tidak' => 'Tidak Bisa Berenang',
+            default => '-',
+        };
+    }
+
+    public function getEnglishSkillLabelAttribute(): string
+    {
+        return self::ENGLISH_SKILLS[$this->english_skill] ?? '-';
     }
 
     public function getIsAsnAttribute(): bool
@@ -149,6 +201,32 @@ class Employee extends Model
         return $this->retirement_date ?? $this->computed_retirement_date;
     }
 
+    /* ================= STATUS PENSIUN OTOMATIS ================= */
+
+    /**
+     * Pegawai dianggap SUDAH PENSIUN bila batas usia pensiunnya telah
+     * terlewati — pegawai tersebut tetap tampil di dashboard, hanya
+     * statusnya otomatis menjadi "Pensiun".
+     */
+    public function getIsRetiredAttribute(): bool
+    {
+        return $this->retirement_date !== null
+            && $this->retirement_date->endOfDay()->isPast();
+    }
+
+    /**
+     * Status kepegawaian tampilan — otomatis "Pensiun" saat BUP terlewati,
+     * selain itu mengikuti master status kepegawaian (ASN/CPNS/PPPK/dll).
+     */
+    public function getDisplayStatusAttribute(): string
+    {
+        if ($this->is_retired) {
+            return 'Pensiun';
+        }
+
+        return $this->employmentStatus?->name ?? '-';
+    }
+
     /**
      * Estimasi kenaikan jabatan / pangkat berikutnya
      * (kolom data bila ada, jika tidak TMT golongan + 4 tahun).
@@ -160,6 +238,29 @@ class Employee extends Model
         }
 
         return $this->tmt_golongan?->copy()->addYears(4);
+    }
+
+    /**
+     * Estimasi Kenaikan Gaji Berkala (KGB) berikutnya — periode 2 tahun,
+     * berlaku bagi ASN (PNS, CPNS) maupun PPPK/P3K.
+     * Dihitung dari TMT golongan terakhir + kelipatan 2 tahun
+     * hingga mendapat tanggal yang akan datang.
+     */
+    public function getNextSalaryRaiseAttribute(): ?\Carbon\CarbonInterface
+    {
+        $tmt = $this->tmt_golongan;
+
+        if (! $tmt) {
+            return null;
+        }
+
+        $date = $tmt->copy()->addYears(2);
+
+        while ($date->isPast()) {
+            $date->addYears(2);
+        }
+
+        return $date;
     }
 
     public function getAgeGroupAttribute(): string

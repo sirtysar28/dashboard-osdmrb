@@ -31,10 +31,13 @@ class DashboardController extends Controller
             'rankChart' => $this->service->getRankChart($query),
             'ageDistribution' => $this->service->getAgeDistribution($query),
             'genderComposition' => $this->service->getGenderComposition($query),
+            'swimmingComposition' => $this->service->getSwimmingComposition($query),
             'retirementProjection' => $this->service->getRetirementProjection($query),
             'unitDistribution' => $this->service->getUnitDistribution($query),
             'promotionStats' => $this->service->getPromotionStats($query),
             'upcomingPromotions' => $this->service->getUpcomingPromotions($query),
+            'salaryRaiseStats' => $this->service->getSalaryRaiseStats($query),
+            'upcomingSalaryRaises' => $this->service->getUpcomingSalaryRaises($query),
             'employees' => $this->service->getEmployeeTable($query),
             'letterStats' => $this->service->getLetterStats(),
             'visitorStats' => \App\Models\AuditLog::visitorStats(),
@@ -69,8 +72,10 @@ class DashboardController extends Controller
             'education' => $this->service->getEducationChart($query),
             'age' => $this->service->getAgeDistribution($query),
             'gender' => $this->service->getGenderComposition($query),
+            'swimming' => $this->service->getSwimmingComposition($query),
             'retirement' => $this->service->getRetirementProjection($query),
             'promotion' => $this->service->getPromotionStats($query),
+            'salary_raise' => $this->service->getSalaryRaiseStats($query),
         ]);
     }
 }

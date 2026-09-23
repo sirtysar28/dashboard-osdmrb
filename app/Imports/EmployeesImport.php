@@ -46,7 +46,9 @@ class EmployeesImport implements ToCollection, WithHeadingRow
     protected array $statusAliases = [
         'pppk' => 'pppk penuh waktu',
         'pppk ft' => 'pppk penuh waktu',
-        'pns baru' => 'pns',
+        'pns' => 'asn',            // istilah lama -> ASN (penamaan konsisten)
+        'pns baru' => 'asn',
+        'asn baru' => 'asn',
     ];
 
     protected array $educationAliases = [
@@ -174,7 +176,7 @@ class EmployeesImport implements ToCollection, WithHeadingRow
                 'tmt_golongan' => $this->normalizeDate($this->val($row, ['tmt_golongan', 'tmt_gol'])),
                 'next_promotion_date' => $nextPromotion,
                 'tmt_cpns' => $this->normalizeDate($this->val($row, ['tmt_cpns'])),
-                'tmt_pns' => $this->normalizeDate($this->val($row, ['tmt_pns'])),
+                'tmt_pns' => $this->normalizeDate($this->val($row, ['tmt_pns', 'tmt_asn'])),
                 'retirement_date' => $retirement,
                 'npwp' => $this->text($this->val($row, ['npwp'])),
                 'karpeg' => $this->text($this->val($row, ['karpeg'])),

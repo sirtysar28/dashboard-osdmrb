@@ -78,6 +78,7 @@
             @php($privileged = auth()->user()->isPrivileged())
             @php($menuLetters = \App\Models\Setting::menuVisible('letters'))
             @php($menuArchives = \App\Models\Setting::menuVisible('archives'))
+            @php($menuCuti = \App\Models\Setting::menuVisible('cuti'))
 
             <div class="sidebar-section">Menu Utama</div>
 
@@ -106,10 +107,18 @@
                        class="menu-item {{ request()->routeIs('employees.non-asn') ? 'active' : '' }}">
                         <i class="bi bi-person-badge"></i><span>Pegawai Non ASN</span>
                     </a>
+                    <a href="{{ route('employees.directory') }}"
+                       class="menu-item {{ request()->routeIs('employees.directory') ? 'active' : '' }}">
+                        <i class="bi bi-person-lines-fill"></i><span>Direktori Pegawai</span>
+                    </a>
                 @else
                     <a href="{{ route('pegawai.profile') }}"
-                       class="menu-item {{ request()->routeIs('pegawai.profile', 'employees.show') ? 'active' : '' }}">
+                       class="menu-item {{ request()->routeIs('pegawai.profile', 'employees.show') && !request()->routeIs('employees.directory') ? 'active' : '' }}">
                         <i class="bi bi-person-vcard"></i><span>Profil Saya</span>
+                    </a>
+                    <a href="{{ route('employees.directory') }}"
+                       class="menu-item {{ request()->routeIs('employees.directory', 'employees.show') ? 'active' : '' }}">
+                        <i class="bi bi-person-lines-fill"></i><span>Direktori Pegawai</span>
                     </a>
                 @endif
 
@@ -129,6 +138,10 @@
                 <a href="{{ route('modules.analisis-jabatan-struktural') }}"
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan-struktural') ? 'active' : '' }}">
                     <i class="bi bi-diagram-2"></i><span>Analisis Jabatan Struktural</span>
+                </a>
+                <a href="{{ route('modules.analisis-jabatan-pelaksana') }}"
+                   class="menu-item {{ request()->routeIs('modules.analisis-jabatan-pelaksana') ? 'active' : '' }}">
+                    <i class="bi bi-person-lines-fill"></i><span>Analisis Jabatan Pelaksana</span>
                 </a>
                 @if(\App\Models\Setting::menuVisible('reformasi_birokrasi'))
                     <a href="{{ route('modules.reformasi-birokrasi') }}"
@@ -157,8 +170,15 @@
                     <i class="bi bi-diagram-3"></i><span>Struktur Organisasi</span>
                 </a>
 
-                @if($menuLetters || $menuArchives)
+                @if($menuLetters || $menuArchives || $menuCuti)
                     <div class="sidebar-section mt-2">Layanan Kepegawaian</div>
+                @endif
+
+                @if($menuCuti)
+                    <a href="{{ route('leaves.index') }}"
+                       class="menu-item {{ request()->routeIs('leaves.*') ? 'active' : '' }}">
+                        <i class="bi bi-calendar2-week"></i><span>Pengajuan Cuti</span>
+                    </a>
                 @endif
 
                 @if($menuLetters)

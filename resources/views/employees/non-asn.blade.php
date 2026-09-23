@@ -5,6 +5,13 @@
 
 @section('content')
 
+@php
+    $categoryFilter = collect($filters['category'] ?? [])->filter()->values();
+    if ($categoryFilter->isEmpty() && is_string($filters['category'] ?? null) && $filters['category'] !== '') {
+        $categoryFilter = collect([$filters['category']]);
+    }
+@endphp
+
 {{-- ================= FILTER ================= --}}
 <div class="filter-card mb-4">
     <form method="GET" class="row g-2 align-items-end">
@@ -14,13 +21,10 @@
                    placeholder="Nama / ID pegawai..." value="{{ $filters['search'] ?? '' }}">
         </div>
         <div class="col-lg-3 col-md-4 col-6">
-            <label>Kategori</label>
-            <select name="category" class="form-select form-select-sm">
-                <option value="">Semua Kategori</option>
-                @foreach ($categories as $category)
-                    <option value="{{ $category }}" {{ ($filters['category'] ?? '') === $category ? 'selected' : '' }}>{{ $category }}</option>
-                @endforeach
-            </select>
+            <label>Kategori <small class="text-muted">(bisa pilih &gt;1)</small></label>
+            <x-multi-select name="category" placeholder="Semua Kategori"
+                            :options="collect($categories)->mapWithKeys(fn ($c) => [$c => $c])->all()"
+                            :selected="$categoryFilter" />
         </div>
         <div class="col-lg-5 col-md-12 d-flex gap-2 justify-content-end">
             <div class="form-check ms-2 mt-2">

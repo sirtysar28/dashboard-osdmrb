@@ -102,6 +102,7 @@
                         ['key' => 'notify_register', 'label' => 'Registrasi akun baru', 'desc' => 'Dikirim ke Administrator Utama'],
                         ['key' => 'notify_sop', 'label' => 'Pengajuan dokumen SOP', 'desc' => 'Dikirim ke Administrator Utama saat SOP diunggah'],
                         ['key' => 'notify_letter', 'label' => 'Pengajuan surat', 'desc' => 'Dikirim ke Administrator Utama saat pegawai mengajukan surat'],
+                        ['key' => 'notify_leave', 'label' => 'Pengajuan cuti', 'desc' => 'Dikirim ke Administrator Utama saat pegawai mengajukan cuti'],
                     ];
                 @endphp
 

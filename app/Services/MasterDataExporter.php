@@ -111,7 +111,7 @@ class MasterDataExporter
                     $row->code,
                     $row->name,
                     $row->group_name,
-                    $row->is_pppk ? 'PPPK' : 'PNS',
+                    $row->is_pppk ? 'PPPK' : 'ASN',
                     $row->sort_order,
                 ],
             ],

@@ -73,14 +73,6 @@
         </button>
     </form>
 
-    <div class="auth-demo">
-        <i class="bi bi-key-fill"></i>
-        <div class="text-start" style="font-size:11.5px; line-height:1.7">
-            <div>Super Admin: <code>admin@osdmrb.go.id</code> &middot; Admin Bagian / Biro SDM: <code>sdm@osdmrb.go.id</code></div>
-            <div>Pegawai: <code>pegawai@osdmrb.go.id</code> &middot; password: <code>password</code></div>
-        </div>
-    </div>
-
     @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {

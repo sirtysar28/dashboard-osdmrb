@@ -3,6 +3,8 @@
 @section('page_title', ($isOwnProfile ?? false) ? 'Profil Saya' : 'Detail Pegawai')
 @section('page_subtitle', $employee->name)
 
+@php($canManage = auth()->user()->isPrivileged() || ($isOwnProfile ?? false))
+
 @section('content')
 
 <div class="row g-3">
@@ -16,10 +18,13 @@
             </div>
             <h5 class="mb-1 fw-bold">{{ $employee->name }}</h5>
             <p class="text-muted small mb-2">{{ $employee->position_name ?? '-' }}</p>
-            <span class="badge {{ $employee->employmentStatus?->code === 'PNS' ? 'bg-primary' : 'bg-info' }} mb-2">
+            <span class="badge {{ in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) ? 'bg-primary' : 'bg-info' }} mb-2">
                 {{ $employee->employmentStatus?->name ?? '-' }}
             </span>
-            <p class="small text-muted mb-0">NIP: {{ $employee->nip }}</p>
+            <p class="small text-muted mb-2">NIP: {{ $employee->nip }}</p>
+            <a href="{{ route('employees.cv', $employee) }}" class="btn btn-sm btn-outline-osdmrb" data-no-loader>
+                <i class="bi bi-file-earmark-person"></i> Unduh CV (PDF)
+            </a>
         </div>
 
         <div class="detail-card mb-3">
@@ -29,6 +34,8 @@
                 <tr><td class="text-muted">Tempat, Tgl Lahir</td><td>{{ $employee->birth_place ?: '-' }}, {{ $employee->birth_date?->translatedFormat('d F Y') ?? '-' }}</td></tr>
                 <tr><td class="text-muted">Usia</td><td>{{ $employee->age ?? '-' }} tahun</td></tr>
                 <tr><td class="text-muted">Agama</td><td>{{ $employee->religion ?? '-' }}</td></tr>
+                <tr><td class="text-muted">Kemampuan Berenang</td><td>{{ $employee->swimming_skill_label }}</td></tr>
+                <tr><td class="text-muted">Kemampuan Bahasa Inggris</td><td>{{ $employee->english_skill_label }}</td></tr>
                 <tr><td class="text-muted">Email</td><td>{{ $employee->email ?? '-' }}</td></tr>
                 <tr><td class="text-muted">Telepon</td><td>{{ $employee->phone ?? '-' }}</td></tr>
                 <tr><td class="text-muted">Alamat</td><td>{{ $employee->address ?? '-' }}</td></tr>
@@ -67,8 +74,9 @@
                     'TMT Jabatan' => $employee->tmt_jabatan?->translatedFormat('d F Y') ?? '-',
                     'TMT Golongan' => $employee->tmt_golongan?->translatedFormat('d F Y') ?? '-',
                     'Kenaikan Pangkat / Jabatan Berikutnya' => $employee->next_promotion_estimated?->translatedFormat('d F Y') ?? '-',
+                    'Kenaikan Gaji Berkala (KGB) Berikutnya' => $employee->next_salary_raise?->translatedFormat('d F Y') ?? '-',
                     'TMT CPNS' => $employee->tmt_cpns?->translatedFormat('d F Y') ?? '-',
-                    'TMT PNS' => $employee->tmt_pns?->translatedFormat('d F Y') ?? '-',
+                    'TMT ASN' => $employee->tmt_pns?->translatedFormat('d F Y') ?? '-',
                     'Batas Usia Pensiun (BUP)' => ($employee->effective_retirement_date?->translatedFormat('d F Y') ?? '-')
                         . ($employee->bup ? ' (' . $employee->bup . ' th)' : ''),
                     'NPWP' => $employee->npwp ?? '-',
@@ -81,6 +89,204 @@
                         </div>
                     </div>
                 @endforeach
+            </div>
+        </div>
+
+        {{-- ============ RIWAYAT KENAIKAN PANGKAT (IIIA -> IIIB dst.) ============ --}}
+        <div class="detail-card mb-3">
+            <div class="card-header-custom">
+                <h5 class="mb-0"><i class="bi bi-arrow-up-right-circle me-2"></i>Riwayat Kenaikan Pangkat</h5>
+                @if ($canManage)
+                    <button class="btn btn-sm btn-outline-osdmrb" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#formRankHistory" aria-expanded="false">
+                        <i class="bi bi-plus-lg"></i> Tambah
+                    </button>
+                @endif
+            </div>
+
+            @if ($canManage)
+                <div class="collapse mb-3" id="formRankHistory">
+                    <form method="POST" action="{{ route('employees.rank-histories.store', $employee) }}"
+                          class="border rounded p-3 bg-light">
+                        @csrf
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small">Dari Pangkat</label>
+                                <select name="old_rank_id" class="form-select form-select-sm">
+                                    <option value="">- Pilih -</option>
+                                    @foreach ($rankList as $rank)
+                                        <option value="{{ $rank->id }}" {{ $employee->rank_id === $rank->id ? 'selected' : '' }}>{{ $rank->code }} {{ $rank->name ? '- ' . $rank->name : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Ke Pangkat <span class="text-danger">*</span></label>
+                                <select name="new_rank_id" class="form-select form-select-sm" required>
+                                    <option value="">- Pilih -</option>
+                                    @foreach ($rankList as $rank)
+                                        <option value="{{ $rank->id }}">{{ $rank->code }} {{ $rank->name ? '- ' . $rank->name : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">TMT / Tanggal Efektif</label>
+                                <input type="date" name="effective_date" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Nomor SK</label>
+                                <input type="text" name="sk_number" class="form-control form-control-sm" placeholder="mis. 888/2026">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Catatan</label>
+                                <input type="text" name="notes" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12 text-end">
+                                <button class="btn btn-sm btn-osdmrb"><i class="bi bi-save"></i> Simpan Riwayat</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            @endif
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr><th>Kenaikan Pangkat</th><th>TMT</th><th>No. SK</th><th>Catatan</th><th class="text-center">Aksi</th></tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($employee->rankHistories as $history)
+                            <tr>
+                                <td><span class="badge bg-primary-subtle text-primary">{{ $history->transition_label }}</span>
+                                    {{ $history->newRank?->name }}
+                                </td>
+                                <td>{{ $history->effective_date?->translatedFormat('d/m/Y') ?? '-' }}</td>
+                                <td>{{ $history->sk_number ?? '-' }}</td>
+                                <td>{{ $history->notes ?? '-' }}</td>
+                                <td class="text-center">
+                                    @if ($canManage)
+                                        <form action="{{ route('employees.rank-histories.destroy', $history) }}" method="POST" class="d-inline"
+                                              onsubmit="return confirm('Hapus riwayat kenaikan pangkat ini?')">
+                                            @csrf @method('DELETE')
+                                            <button class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="text-center text-muted py-3">Belum ada riwayat kenaikan pangkat.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {{-- ============ RIWAYAT DIKLAT, SEMINAR & PELATIHAN ============ --}}
+        <div class="detail-card mb-3">
+            <div class="card-header-custom">
+                <h5 class="mb-0"><i class="bi bi-mortarboard-fill me-2"></i>Riwayat Diklat, Seminar &amp; Pelatihan</h5>
+                @if ($canManage)
+                    <button class="btn btn-sm btn-outline-osdmrb" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#formTraining" aria-expanded="false">
+                        <i class="bi bi-plus-lg"></i> Tambah
+                    </button>
+                @endif
+            </div>
+
+            @if ($canManage)
+                <div class="collapse mb-3" id="formTraining">
+                    <form method="POST" action="{{ route('modules.diklat.store') }}"
+                          enctype="multipart/form-data" class="border rounded p-3 bg-light">
+                        @csrf
+                        <input type="hidden" name="employee_id" value="{{ $employee->id }}">
+                        <input type="hidden" name="from" value="profile">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Nama Diklat / Seminar / Pelatihan <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Jenis</label>
+                                <select name="type" class="form-select form-select-sm">
+                                    @foreach (\App\Models\EmployeeTraining::TYPES as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Lingkup</label>
+                                <select name="scope" class="form-select form-select-sm">
+                                    @foreach (\App\Models\EmployeeTraining::scopeOptions() as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Penyelenggara</label>
+                                <input type="text" name="organizer" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Tahun</label>
+                                <input type="number" name="year" class="form-control form-control-sm" min="1900" max="2100" value="{{ now()->year }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">JP</label>
+                                <input type="number" name="hours" class="form-control form-control-sm" min="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Sertifikat (PDF/JPG maks 10MB)</label>
+                                <input type="file" name="file" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12 text-end">
+                                <button class="btn btn-sm btn-osdmrb"><i class="bi bi-save"></i> Simpan Riwayat</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            @endif
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr><th>Nama</th><th>Jenis</th><th>Lingkup</th><th>Penyelenggara</th><th>Tahun</th><th class="text-center">Aksi</th></tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($employee->trainings as $training)
+                            <tr>
+                                <td class="fw-semibold">{{ $training->name }}
+                                    @if ($training->certificate_number)
+                                        <small class="text-muted d-block">No. Sertifikat: {{ $training->certificate_number }}</small>
+                                    @endif
+                                </td>
+                                <td><span class="badge bg-{{ $training->type_badge }}">{{ $training->type_label }}</span></td>
+                                <td>
+                                    <span class="badge {{ $training->scope === \App\Models\EmployeeTraining::SCOPE_ABROAD ? 'bg-danger' : 'bg-secondary bg-opacity-50' }}">
+                                        {{ $training->scope_label }}
+                                    </span>
+                                </td>
+                                <td>{{ $training->organizer ?? '-' }}</td>
+                                <td>{{ $training->year ?? '-' }}</td>
+                                <td class="text-center text-nowrap">
+                                    @if ($training->has_file)
+                                        <a href="{{ route('modules.diklat.download', $training) }}" class="btn btn-sm btn-outline-secondary" title="Unduh Sertifikat" data-no-loader>
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    @endif
+                                    @if ($canManage)
+                                        <form action="{{ route('modules.diklat.destroy', $training) }}" method="POST" class="d-inline"
+                                              onsubmit="return confirm('Hapus riwayat ini?')">
+                                            @csrf @method('DELETE')
+                                            <button class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="text-center text-muted py-3">Belum ada riwayat diklat, seminar atau pelatihan.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
 

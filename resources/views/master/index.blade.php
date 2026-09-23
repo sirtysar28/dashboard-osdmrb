@@ -324,7 +324,7 @@
                                 <td><code>{{ $rank->code }}</code></td>
                                 <td>{{ $rank->name ?? '-' }}</td>
                                 <td>{{ $rank->group_name ?? '-' }}</td>
-                                <td><span class="badge {{ $rank->is_pppk ? 'bg-info' : 'bg-primary' }}">{{ $rank->is_pppk ? 'PPPK' : 'PNS' }}</span></td>
+                                <td><span class="badge {{ $rank->is_pppk ? 'bg-info' : 'bg-primary' }}">{{ $rank->is_pppk ? 'PPPK' : 'ASN' }}</span></td>
                                 <td class="text-center text-nowrap">
                                     <button class="btn btn-sm btn-outline-osdmrb {{ $canManage ? '' : 'd-none' }}" title="Ubah"
                                             data-bs-toggle="modal" data-bs-target="#editRank{{ $rank->id }}">
@@ -372,7 +372,7 @@
                     <form method="POST" action="{{ route('master.statuses.store') }}">
                         @csrf
                         <div class="mb-3"><label class="form-label">Kode</label><input type="text" name="code" class="form-control" required placeholder="CPNS"></div>
-                        <div class="mb-3"><label class="form-label">Nama</label><input type="text" name="name" class="form-control" required placeholder="Calon PNS"></div>
+                        <div class="mb-3"><label class="form-label">Nama</label><input type="text" name="name" class="form-control" required placeholder="Calon ASN"></div>
                         <button class="btn btn-osdmrb w-100">Simpan</button>
                     </form>
                 </div>
@@ -430,8 +430,8 @@
                     <h5>Tambah Level Jabatan</h5>
                     <form method="POST" action="{{ route('master.job-levels.store') }}">
                         @csrf
-                        <div class="mb-3"><label class="form-label">Kode</label><input type="text" name="code" class="form-control" required placeholder="ADMINISTRATOR"></div>
-                        <div class="mb-3"><label class="form-label">Nama</label><input type="text" name="name" class="form-control" required placeholder="Administrator"></div>
+                        <div class="mb-3"><label class="form-label">Kode</label><input type="text" name="code" class="form-control" required placeholder="ESELON_II"></div>
+                        <div class="mb-3"><label class="form-label">Nama</label><input type="text" name="name" class="form-control" required placeholder="Eselon II"></div>
                         <div class="mb-3"><label class="form-label">Urutan</label><input type="number" name="sort_order" class="form-control" value="0"></div>
                         <button class="btn btn-osdmrb w-100">Simpan</button>
                     </form>

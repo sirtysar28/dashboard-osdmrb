@@ -9,13 +9,16 @@ use App\Imports\NonAsnEmployeesImport;
 use App\Models\AuditLog;
 use App\Models\Campus;
 use App\Models\Employee;
+use App\Models\EmployeeRankHistory;
 use App\Models\EducationLevel;
 use App\Models\EmploymentStatus;
 use App\Models\Position;
 use App\Models\Rank;
 use App\Models\Unit;
 use App\Traits\ExportsTable;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -25,7 +28,8 @@ class EmployeeController extends Controller
 
     /**
      * Daftar pegawai ASN (admin).
-     * Mendukung filter dari stat-card dashboard: jenis jabatan, pensiun, status.
+     * Mendukung filter dari stat-card dashboard: jenis jabatan, pensiun, status, KGB.
+     * Filter status & unit mendukung pilihan LEBIH DARI SATU (multi-select).
      */
     public function index(Request $request)
     {
@@ -38,23 +42,66 @@ class EmployeeController extends Controller
             'employees' => $employees,
             'statusList' => EmploymentStatus::orderBy('name')->get(),
             'unitList' => Unit::orderBy('name')->get(),
-            'filters' => $request->only(['search', 'status', 'unit', 'inactive', 'jenis', 'pensiun', 'naik']),
+            'filters' => $this->normalizeFilters($request),
             'nonAsn' => false,
         ]);
     }
 
     /**
+     * Direktori pegawai — pegawai biasa dapat MELIHAT & MENCARI pegawai lain
+     * (hanya view-only, tanpa aksi ubah/hapus).
+     */
+    public function directory(Request $request)
+    {
+        $employees = Employee::query()
+            ->with(['unit', 'employmentStatus', 'rank', 'education'])
+            ->where('is_active', true)
+            ->when($request->filled('search'), fn ($q, $v) => $q->where(fn ($w) => $w
+                ->where('name', 'like', "%{$v}%")
+                ->orWhere('nip', 'like', "%{$v}%")))
+            ->when($request->filled('jenis'), function ($q, $v) {
+                if ($v === 'asn') {
+                    $q->where('employee_type', '!=', Employee::TYPE_NON_ASN);
+                } elseif ($v === 'non_asn') {
+                    $q->where('employee_type', Employee::TYPE_NON_ASN);
+                }
+            })
+            ->when(collect($request->input('status', []))->filter()->isNotEmpty(),
+                fn ($q) => $q->whereIn('employment_status_id', collect($request->input('status'))->filter()))
+            ->when(collect($request->input('unit', []))->filter()->isNotEmpty(),
+                fn ($q) => $q->whereIn('unit_id', collect($request->input('unit'))->filter()))
+            ->orderBy('name')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('employees.directory', [
+            'employees' => $employees,
+            'statusList' => EmploymentStatus::orderBy('name')->get(),
+            'unitList' => Unit::orderBy('name')->get(),
+            'filters' => $request->only(['search', 'jenis', 'status', 'unit']),
+        ]);
+    }
+
+    /**
      * Daftar pegawai NON ASN (pramubakti, security, cleaning service, dll).
+     * Filter kategori mendukung pilihan lebih dari satu (multi-select).
      */
     public function nonAsn(Request $request)
     {
+        $categories = collect($request->input('category', []))->filter()->values();
+
+        // kompatibilitas tautan lama (?category=Security)
+        if ($categories->isEmpty() && is_string($request->input('category')) && $request->input('category') !== '') {
+            $categories = collect([$request->input('category')]);
+        }
+
         $employees = Employee::query()
             ->with(['unit', 'employmentStatus', 'education'])
             ->where('employee_type', Employee::TYPE_NON_ASN)
             ->when($request->search, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$v}%")
                 ->orWhere('nip', 'like', "%{$v}%")))
-            ->when($request->category, fn ($q, $v) => $q->where('category', $v))
+            ->when($categories->isNotEmpty(), fn ($q) => $q->whereIn('category', $categories))
             ->when($request->has('inactive'), fn ($q) => $q->where('is_active', false), fn ($q) => $q->where('is_active', true))
             ->orderBy('category')
             ->orderBy('name')
@@ -200,6 +247,8 @@ class EmployeeController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'address' => ['nullable', 'string', 'max:1000'],
+            'swimming_skill' => ['nullable', 'in:bisa,tidak'],
+            'english_skill' => ['nullable', 'in:'.implode(',', array_keys(Employee::ENGLISH_SKILLS))],
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
@@ -254,32 +303,49 @@ class EmployeeController extends Controller
         abort_unless($employee, 404, 'Akun Anda belum terhubung dengan data pegawai. Hubungi admin instansi.');
 
         $employee->load(['unit', 'education', 'rank', 'employmentStatus',
-            'positions.position.positionType', 'positions.position.jobLevel', 'positions.unit', 'letters.letterType']);
+            'positions.position.positionType', 'positions.position.jobLevel', 'positions.unit',
+            'letters.letterType', 'trainings.uploader', 'rankHistories.oldRank', 'rankHistories.newRank']);
 
         return view('employees.show', [
             'employee' => $employee,
             'isOwnProfile' => true,
+            'rankList' => Rank::orderBy('sort_order')->get(),
         ]);
     }
 
     /**
      * Detail pegawai.
-     * Pegawai biasa hanya boleh melihat profil miliknya sendiri.
+     * Pegawai biasa boleh melihat profil pegawai lain (view-only — tombol ubah
+     * hanya tampil untuk admin/biro SDM/super admin); data kontak tetap tampil
+     * sebagai direktori internal instansi.
      */
     public function show(Employee $employee)
     {
-        $user = request()->user();
-
-        abort_if(! $user->isPrivileged() && $user->employee_id !== $employee->id,
-            403, 'Anda tidak memiliki akses untuk melihat profil pegawai lain.');
-
         $employee->load(['unit', 'education', 'rank', 'employmentStatus',
-            'positions.position.positionType', 'positions.position.jobLevel', 'positions.unit', 'letters.letterType']);
+            'positions.position.positionType', 'positions.position.jobLevel', 'positions.unit',
+            'letters.letterType', 'trainings.uploader', 'rankHistories.oldRank', 'rankHistories.newRank']);
 
         return view('employees.show', [
             'employee' => $employee,
-            'isOwnProfile' => false,
+            'isOwnProfile' => request()->user()->employee_id === $employee->id,
+            'rankList' => Rank::orderBy('sort_order')->get(),
         ]);
+    }
+
+    /**
+     * Unduh / cetak CV pegawai (PDF, format CURRICULUM VITAE siap cetak).
+     */
+    public function cv(Employee $employee)
+    {
+        $employee->load(['unit', 'education', 'rank', 'employmentStatus',
+            'positions.position', 'positions.unit', 'trainings',
+            'rankHistories.oldRank', 'rankHistories.newRank']);
+
+        \App\Services\MasterDataExporter::raiseMemoryLimit('512M');
+
+        return Pdf::loadView('employees.cv', ['employee' => $employee])
+            ->setPaper('a4')
+            ->download('cv-'.Str::slug($employee->name).'.pdf');
     }
 
     /**
@@ -309,7 +375,21 @@ class EmployeeController extends Controller
         $validated = $this->validated($request, $employee);
         $validated = array_merge($validated, $this->resolvedEducationValues($request));
 
+        $oldRankId = $employee->rank_id;
+
         $employee->update($validated);
+
+        // catat otomatis riwayat kenaikan pangkat saat golongan berubah
+        $newRankId = array_key_exists('rank_id', $validated) ? $validated['rank_id'] : $oldRankId;
+
+        if ($newRankId !== null && (int) $newRankId !== (int) $oldRankId) {
+            $employee->rankHistories()->create([
+                'old_rank_id' => $oldRankId,
+                'new_rank_id' => $newRankId,
+                'effective_date' => $validated['tmt_golongan'] ?? null,
+                'notes' => 'Tercatat otomatis dari perubahan data golongan pegawai.',
+            ]);
+        }
 
         if ($request->filled('position_id')) {
             $this->syncPosition($employee, $request);
@@ -319,6 +399,58 @@ class EmployeeController extends Controller
 
         return redirect()->route('employees.show', $employee)
             ->with('success', 'Data pegawai berhasil diperbarui.');
+    }
+
+    /* ================= RIWAYAT KENAIKAN PANGKAT ================= */
+
+    /**
+     * Tambah riwayat kenaikan pangkat (mis. III/a -> III/b).
+     * Admin bagian / Biro SDM / super admin — atau pegawai untuk profilnya sendiri.
+     */
+    public function storeRankHistory(Request $request, Employee $employee)
+    {
+        $this->authorizeProfileEdit($employee);
+
+        $validated = $request->validate([
+            'old_rank_id' => ['nullable', 'exists:ranks,id'],
+            'new_rank_id' => ['required', 'exists:ranks,id'],
+            'sk_number' => ['nullable', 'max:100'],
+            'effective_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'max:255'],
+        ], [
+            'new_rank_id.required' => 'Golongan/pangkat baru wajib dipilih.',
+        ]);
+
+        $history = $employee->rankHistories()->create($validated);
+
+        AuditLog::record(AuditLog::EVENT_CREATE, 'pegawai',
+            'Menambah riwayat kenaikan pangkat: '.$employee->name.' ('.$history->transition_label.')');
+
+        return back()->with('success', 'Riwayat kenaikan pangkat berhasil ditambahkan.');
+    }
+
+    /**
+     * Hapus riwayat kenaikan pangkat.
+     */
+    public function destroyRankHistory(Request $request, EmployeeRankHistory $rankHistory)
+    {
+        $this->authorizeProfileEdit($rankHistory->employee);
+
+        $rankHistory->delete();
+
+        return back()->with('success', 'Riwayat kenaikan pangkat berhasil dihapus.');
+    }
+
+    /**
+     * Hak menambah/menghapus riwayat pada profil pegawai:
+     * admin bagian / Biro SDM / super admin, atau pegawai pemilik profil.
+     */
+    private function authorizeProfileEdit(Employee $employee): void
+    {
+        $user = request()->user();
+
+        abort_unless($user->isPrivileged() || $user->employee_id === $employee->id,
+            403, 'Anda tidak memiliki akses untuk mengubah data pegawai ini.');
     }
 
     /**
@@ -369,10 +501,11 @@ class EmployeeController extends Controller
                 $employee->is_active ? 'Aktif' : 'Non-aktif',
             ]);
 
-        $filterInfo = collect($request->only(['search', 'status', 'unit', 'inactive']))
-            ->filter()
-            ->map(fn ($value, $key) => "{$key}={$value}")
-            ->implode(', ');
+        $filterInfo = collect([
+            'search' => $request->input('search'),
+            'status' => collect($this->normalizeFilters($request)['status'])->implode(','),
+            'unit' => collect($this->normalizeFilters($request)['unit'])->implode(','),
+        ])->filter()->map(fn ($value, $key) => "{$key}={$value}")->implode(', ');
 
         return $this->exportTable(
             $format,
@@ -450,21 +583,69 @@ class EmployeeController extends Controller
     /* ================= HELPERS ================= */
 
     /**
-     * Query pegawai dengan filter pencarian/status/unit/aktif (dipakai index & export)
-     * + filter stat-card dashboard (jenis jabatan, pensiun, kenaikan jabatan).
+     * Nilai filter untuk view — status & unit berupa array (multi-select).
+     */
+    private function normalizeFilters(Request $request): array
+    {
+        $status = $request->input('status', []);
+        $unit = $request->input('unit', []);
+
+        // kompatibilitas tautan lama (string tunggal, mis. ?status=pppk)
+        if (is_string($status)) {
+            $status = $status === '' ? [] : [$status];
+        }
+        if (is_string($unit)) {
+            $unit = $unit === '' ? [] : [$unit];
+        }
+
+        return [
+            'search' => $request->input('search'),
+            'status' => $status,
+            'unit' => $unit,
+            'inactive' => $request->input('inactive'),
+            'jenis' => $request->input('jenis'),
+            'pensiun' => $request->input('pensiun'),
+            'naik' => $request->input('naik'),
+            'kgb' => $request->input('kgb'),
+        ];
+    }
+
+    /**
+     * Query pegawai dengan filter pencarian/status (bisa >1)/unit (bisa >1)/aktif
+     * (dipakai index, export & tautan stat-card dashboard)
+     * + filter stat-card dashboard (jenis jabatan, pensiun, kenaikan jabatan, KGB).
      */
     private function filteredQuery(Request $request)
     {
+        $statusValues = collect($this->normalizeFilters($request)['status'])->filter()->values();
+        $unitValues = collect($this->normalizeFilters($request)['unit'])->filter()->values();
+
         return Employee::query()
             ->with(['unit', 'education', 'rank', 'employmentStatus'])
             ->where('employee_type', '!=', Employee::TYPE_NON_ASN) // data utama = ASN
             ->when($request->search, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$v}%")
                 ->orWhere('nip', 'like', "%{$v}%")))
-            ->when($request->status === 'pppk', fn ($q) => $q->whereHas(
-                'employmentStatus', fn ($w) => $w->where('name', 'like', 'PPPK%')))
-            ->when($request->status && $request->status !== 'pppk', fn ($q, $v) => $q->where('employment_status_id', $v))
-            ->when($request->unit, fn ($q, $v) => $q->where('unit_id', $v))
+            // status kepegawaian — MULTI-SELECT (mis. ASN + PPPK sekaligus)
+            ->when($statusValues->isNotEmpty(), function ($q) use ($statusValues) {
+                $statusIds = $statusValues->filter(fn ($v) => ctype_digit((string) $v))->map(fn ($v) => (int) $v);
+                $wantsPppk = $statusValues->contains('pppk');
+
+                $q->where(function ($w) use ($statusIds, $wantsPppk) {
+                    if ($statusIds->isNotEmpty()) {
+                        $w->whereIn('employment_status_id', $statusIds);
+                    }
+
+                    if ($wantsPppk) {
+                        $pppk = fn ($e) => $e->where('name', 'like', 'PPPK%');
+                        $statusIds->isNotEmpty()
+                            ? $w->orWhereHas('employmentStatus', $pppk)
+                            : $w->whereHas('employmentStatus', $pppk);
+                    }
+                });
+            })
+            // unit kerja — MULTI-SELECT
+            ->when($unitValues->isNotEmpty(), fn ($q) => $q->whereIn('unit_id', $unitValues->map(fn ($v) => (int) $v)))
             ->when($request->jenis === 'struktural', fn ($q) => $q->whereNotNull('eselon'))
             ->when($request->jenis === 'fungsional', fn ($q) => $q->whereNotNull('functional_level')
                 ->where('functional_level', 'not like', '%Umum%'))
@@ -480,10 +661,22 @@ class EmployeeController extends Controller
             /**
              * Filter kenaikan jabatan/pangkat (estimasi = kolom Kenaikan Pangkat/Jabatan
              * bila terisi, jika tidak TMT golongan + 4 tahun — sama dengan dashboard).
-             * Opsi: tahun_ini | 1 (≤ 1 tahun) | 4 (≤ 4 tahun).
+             * Opsi: tahun_ini | 1 (≤ 1 tahun) | 4 (≤ 4 tahun) | overdue (jatuh tempo/terlewat).
              * Window TMT digeser -4 tahun agar kueri kompatibel MySQL & SQLite.
              */
-            ->when(in_array($request->naik, ['tahun_ini', '1', '4'], true), function ($q) use ($request) {
+            ->when(in_array($request->naik, ['tahun_ini', '1', '4', 'overdue'], true), function ($q) use ($request) {
+                if ($request->naik === 'overdue') {
+                    // estimasi kenaikan sudah lewat (terlewat/belum diproses)
+                    $q->where(fn ($w) => $w
+                        ->where('next_promotion_date', '<', now()->startOfDay())
+                        ->orWhere(fn ($w2) => $w2
+                            ->whereNull('next_promotion_date')
+                            ->whereNotNull('tmt_golongan')
+                            ->where('tmt_golongan', '<', now()->startOfDay()->subYears(4))));
+
+                    return;
+                }
+
                 $range = match ($request->naik) {
                     'tahun_ini' => [now()->startOfYear(), now()->endOfYear()],
                     '1' => [now()->startOfDay(), now()->addYear()],
@@ -499,6 +692,36 @@ class EmployeeController extends Controller
                             $range[0]->copy()->subYears(4),
                             $range[1]->copy()->subYears(4),
                         ])));
+            })
+            /**
+             * Filter Kenaikan Gaji Berkala (KGB) — berkala 2 tahun bagi ASN, CPNS & PPPK.
+             * Tanggal KGB = TMT golongan + kelipatan 2 tahun; window TMT digeser
+             * -2k tahun (k = 1..25, mencakup masa kerja ± 50 tahun).
+             * Opsi: tahun_ini | 1 (≤ 1 tahun) | 2 (≤ 2 tahun) | overdue (jatuh tempo).
+             * overdue = TMT golongan sudah > 2 tahun (KGB seharusnya sudah diproses).
+             */
+            ->when(in_array($request->kgb, ['tahun_ini', '1', '2', 'overdue'], true), function ($q) use ($request) {
+                if ($request->kgb === 'overdue') {
+                    $q->whereNotNull('tmt_golongan')
+                        ->where('tmt_golongan', '<=', now()->subYears(2));
+
+                    return;
+                }
+
+                $range = match ($request->kgb) {
+                    'tahun_ini' => [now()->startOfYear(), now()->endOfYear()],
+                    '1' => [now()->startOfDay(), now()->addYear()],
+                    default => [now()->startOfDay(), now()->addYears(2)],
+                };
+
+                $q->whereNotNull('tmt_golongan')->where(function ($w) use ($range) {
+                    foreach (range(1, 25) as $k) {
+                        $w->orWhereBetween('tmt_golongan', [
+                            $range[0]->copy()->subYears(2 * $k),
+                            $range[1]->copy()->subYears(2 * $k),
+                        ]);
+                    }
+                });
             })
             ->when($request->has('inactive'), fn ($q) => $q->where('is_active', false), fn ($q) => $q->where('is_active', true));
     }
@@ -516,6 +739,8 @@ class EmployeeController extends Controller
             'birth_place' => ['nullable', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'religion' => ['nullable', 'max:30'],
+            'swimming_skill' => ['nullable', 'in:bisa,tidak'],
+            'english_skill' => ['nullable', 'in:'.implode(',', array_keys(Employee::ENGLISH_SKILLS))],
             'address' => ['nullable'],
             'employment_status_id' => ['nullable', 'exists:employment_statuses,id'],
             'rank_id' => ['nullable', 'exists:ranks,id'],

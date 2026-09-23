@@ -106,6 +106,23 @@
                                value="{{ old('email', $employee->email) }}" placeholder="nama@email.com">
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Kemampuan Berenang</label>
+                        <select name="swimming_skill" class="form-select">
+                            <option value="">- Pilih -</option>
+                            <option value="bisa" {{ old('swimming_skill', $employee->swimming_skill) === 'bisa' ? 'selected' : '' }}>Bisa Berenang</option>
+                            <option value="tidak" {{ old('swimming_skill', $employee->swimming_skill) === 'tidak' ? 'selected' : '' }}>Tidak Bisa Berenang</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Kemampuan Bahasa Inggris</label>
+                        <select name="english_skill" class="form-select">
+                            <option value="">- Pilih -</option>
+                            @foreach (\App\Models\Employee::ENGLISH_SKILLS as $value => $label)
+                                <option value="{{ $value }}" {{ old('english_skill', $employee->english_skill) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label">Tanggal Lahir</label>
                         <input type="date" name="birth_date" class="form-control"
                                value="{{ old('birth_date', $employee->birth_date?->format('Y-m-d')) }}">

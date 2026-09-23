@@ -52,7 +52,7 @@ class EmployeeSeeder extends Seeder
 
             // ---- status ASN ----
             $statusName = match ($row['STATUS'] ?? '') {
-                'PNS' => 'PNS',
+                'PNS', 'ASN' => 'ASN',
                 'PPPK Penuh Waktu' => 'PPPK Penuh Waktu',
                 'PPPK Paruh Waktu' => 'PPPK Paruh Waktu',
                 default => null,
@@ -60,9 +60,9 @@ class EmployeeSeeder extends Seeder
 
             // ---- eselon & level fungsional ----
             $eselonRaw = $row['Level Eselon'] ?? null;
-            $eselon = in_array($eselonRaw, ['II', 'III', 'IV']) ? $eselonRaw : null;
+            $eselon = in_array($eselonRaw, ['I', 'II', 'III', 'IV']) ? $eselonRaw : null;
             $functionalLevel = $eselon ? null : ($row['Level Fungsional'] ?? $row['Level Jabatan'] ?? null);
-            $functionalLevel = in_array($functionalLevel, ['-', 'Fungsional Umum', 'PPPK Fungsional Umum']) ? null : $functionalLevel;
+            $functionalLevel = $this->normalizeFunctionalLevel($functionalLevel);
 
             // ---- posisi jabatan ----
             [$positionCode, $positionName] = $this->resolvePosition($eselon, $functionalLevel, $row['Level Jabatan'] ?? null, $statusName);
@@ -136,11 +136,29 @@ class EmployeeSeeder extends Seeder
         }
     }
 
+    /** Normalisasi jenjang fungsional — hanya: Pertama, Muda, Madya, Penyelia, Terampil. */
+    private function normalizeFunctionalLevel(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return match ($value) {
+            'Pertama', 'Fungsional Pertama', 'Ahli Pertama', 'Fungsional Ahli Pertama' => 'Pertama',
+            'Muda', 'Fungsional Muda', 'Ahli Muda', 'Fungsional Ahli Muda' => 'Muda',
+            'Madya', 'Fungsional Madya', 'Ahli Madya', 'Fungsional Ahli Madya' => 'Madya',
+            'Penyelia', 'Fungsional Penyelia' => 'Penyelia',
+            'Terampil', 'Mahir', 'Fungsional Terampil', 'PPPK Terampil' => 'Terampil',
+            default => null, // '-', 'Fungsional Umum', 'PPPK Umum', kosong, dsb. → pelaksana
+        };
+    }
+
     private function resolvePosition(?string $eselon, ?string $functional, ?string $levelJabatan, ?string $status): array
     {
         // struktural
+        if ($eselon === 'I') {
+            return ['STR-SEKJEN', 'Sekretaris Jenderal (Eselon I)'];
+        }
         if ($eselon === 'II') {
-            return ['STR-KABIRO', 'Kepala Biro OSDMRB (Eselon II)'];
+            return ['STR-KABIRO', 'Kepala Biro (Eselon II)'];
         }
         if ($eselon === 'III') {
             return ['STR-KABAG', 'Kepala Bagian (Eselon III)'];
@@ -149,17 +167,14 @@ class EmployeeSeeder extends Seeder
             return ['STR-KASUBAG', 'Kepala Subbagian (Eselon IV)'];
         }
 
-        // fungsional tertentu
+        // fungsional tertentu — input sudah dinormalisasi (Pertama/Muda/Madya/Penyelia/Terampil)
         return match ($functional) {
-            'Madya', 'Fungsional Madya' => ['FUN-ANALIS-MADYA', 'Analis SDM Ahli Madya'],
-            'Muda', 'Fungsional Muda' => ['FUN-ANALIS-MUDA', 'Analis SDM Ahli Muda'],
-            'Pertama', 'Fungsional Pertama' => ['FUN-ANALIS-PERTAMA', 'Analis SDM Ahli Pertama'],
-            'Terampil', 'PPPK Terampil' => ['PEL-PPPK-TERAMPIL', 'PPPK Pelaksana Terampil'],
-            'Mahir' => ['PEL-PPPK-MAHIR', 'PPPK Pelaksana Mahir'],
+            'Madya' => ['FUN-ANALIS-MADYA', 'Analis SDM Ahli Madya'],
+            'Muda' => ['FUN-ANALIS-MUDA', 'Analis SDM Ahli Muda'],
+            'Pertama' => ['FUN-ANALIS-PERTAMA', 'Analis SDM Ahli Pertama'],
             'Penyelia' => ['PEL-PPPK-PENYELIA', 'PPPK Pelaksana Penyelia'],
-            'PPPK Umum' => ['PEL-PPPK-UMUM', 'PPPK Fungsional Umum'],
-            'PPPK Terampil' => ['PEL-PPPK-TERAMPIL', 'PPPK Pelaksana Terampil'],
-            default => ['PEL-PENGELOLA', 'Pengelola Kepegawaian (Fungsional Umum)'],
+            'Terampil' => ['PEL-PPPK-TERAMPIL', 'PPPK Pelaksana Terampil'],
+            default => ['PEL-PENGELOLA', 'Pengelola Kepegawaian (Pelaksana)'],
         };
     }
 

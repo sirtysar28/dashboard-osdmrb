@@ -26,7 +26,7 @@ class EmployeesTemplateExport implements FromArray, WithTitle, WithColumnWidths,
     {
         return [
             [
-                1, 'Budi Santoso', '198504122010001001', 'PNS', 'Analis Kepegawaian Ahli Madya', 'Fungsional',
+                1, 'Budi Santoso', '198504122010001001', 'ASN', 'Analis Kepegawaian Ahli Madya', 'Fungsional',
                 'Biro Organisasi, Sumber Daya Manusia dan Reformasi Birokrasi', 'Sekretariat Jenderal Kementerian Transmigrasi', '-',
                 '', 'Madya', '01/09/2024', 'Pembina Utama Muda', '(IV.c)', 'IV', '01/04/2024', '01 April 2028',
                 '01/10/2010', '15 tahun 6 bulan', '01/10/2011', '', '', '',
@@ -77,7 +77,7 @@ class EmployeesTemplateExport implements FromArray, WithTitle, WithColumnWidths,
             'KENAIKAN PANGKAT',
             'TMT CPNS',
             'MASA KERJA',
-            'TMT PNS',
+            'TMT ASN',
             'TMT KGB',
             'Masa Kerja Saat KGB',
             'KGB BERIKUTNYA',

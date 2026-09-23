@@ -30,33 +30,73 @@ class DashboardService
     }
 
     /**
-     * Terapkan filter (unit es1/es2/balai, status ASN, golongan, jenis kelamin, pendidikan, pencarian).
+     * Terapkan filter (unit es1/es2/balai, status ASN — bisa lebih dari satu,
+     * golongan, jenis kelamin, pendidikan, pencarian).
+     */
+    /**
+     * Terapkan filter dashboard.
+     *
+     * Semua filter bersifat MULTI-PILIH (checklist dropdown — parameter array
+     * `es1[]`, `es2[]`, dst.); nilai tunggal dari URL lama tetap didukung.
+     * Bila tidak ada yang dicentang → filter tidak diterapkan (semua data).
+     *
+     * Filter unit (Eselon I/II/Balai) mencakup unit terpilih beserta
+     * SELURUH TURUNANNYA (eselon di bawahnya s.d. bagian/subbagian),
+     * sehingga jumlah di kartu, grafik, dan tabel selalu sinkron.
      */
     public function applyFilters(Builder $query, array $filters): Builder
     {
-        $query->when($filters['es1'] ?? null, function (Builder $q, $es1) {
-            $unitIds = Unit::where('parent_id', $es1)->pluck('id')->push((int) $es1);
-            $q->whereIn('unit_id', $unitIds);
-        });
+        // Eselon I — unit terpilih + seluruh turunannya (es II, bagian/es III, dst.)
+        $es1 = collect($filters['es1'] ?? [])->filter()->values();
+        $query->when($es1->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($es1)));
 
-        $query->when($filters['es2'] ?? null, function (Builder $q, $es2) {
-            $unitIds = Unit::where('parent_id', $es2)->pluck('id')->push((int) $es2);
-            $q->whereIn('unit_id', $unitIds);
-        });
+        // Eselon II — unit terpilih + seluruh turunannya (bagian/es III, dst.)
+        $es2 = collect($filters['es2'] ?? [])->filter()->values();
+        $query->when($es2->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($es2)));
 
-        $query->when($filters['balai'] ?? null, function (Builder $q, $balai) {
-            $q->where('unit_id', $balai);
-        });
+        // Balai — unit terpilih + seluruh turunannya
+        $balai = collect($filters['balai'] ?? [])->filter()->values();
+        $query->when($balai->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($balai)));
 
-        $query->when($filters['status_asn'] ?? null, fn (Builder $q, $v) => $q->where('employment_status_id', $v));
-        $query->when($filters['rank'] ?? null, fn (Builder $q, $v) => $q->where('rank_id', $v));
-        $query->when($filters['education'] ?? null, fn (Builder $q, $v) => $q->where('education_level_id', $v));
-        $query->when($filters['gender'] ?? null, fn (Builder $q, $v) => $q->where('gender', $v));
+        // Status ASN — mis. ASN + PPPK + CPNS sekaligus
+        $statusAsn = collect($filters['status_asn'] ?? [])->filter()->values();
+        $query->when($statusAsn->isNotEmpty(), fn (Builder $q) => $q->whereIn('employment_status_id', $statusAsn));
+
+        // Golongan — bisa pilih lebih dari satu
+        $rank = collect($filters['rank'] ?? [])->filter()->values();
+        $query->when($rank->isNotEmpty(), fn (Builder $q) => $q->whereIn('rank_id', $rank));
+
+        // Pendidikan — bisa pilih lebih dari satu
+        $education = collect($filters['education'] ?? [])->filter()->values();
+        $query->when($education->isNotEmpty(), fn (Builder $q) => $q->whereIn('education_level_id', $education));
+
+        $query->when($filters['gender'] ?? null, fn (Builder $q, $v) => $q->whereIn('gender', collect($v)->filter()->values()));
         $query->when($filters['search'] ?? null, function (Builder $q, $v) {
             $q->where(fn ($w) => $w->where('name', 'like', "%{$v}%")->orWhere('nip', 'like', "%{$v}%"));
         });
 
         return $query;
+    }
+
+    /**
+     * Kumpulkan ID unit terpilih beserta SELURUH TURUNANNYA
+     * (berjenjang ke bawah: es I -> es II -> bagian -> subbagian ...)
+     * supaya pegawai di unit turunan mana pun ikut terhitung.
+     *
+     * @param  \Illuminate\Support\Collection<int, mixed>  $unitIds
+     * @return array<int, int>
+     */
+    private function unitDescendants(\Illuminate\Support\Collection $unitIds): array
+    {
+        $all = $unitIds->map(fn ($v) => (int) $v)->unique()->values();
+        $parents = $all->values();
+
+        while ($parents->isNotEmpty()) {
+            $parents = Unit::whereIn('parent_id', $parents)->pluck('id');
+            $all = $all->merge($parents)->unique()->values();
+        }
+
+        return $all->all();
     }
 
     /**
@@ -78,6 +118,9 @@ class DashboardService
 
         $pppkCount = (clone $query)->whereHas('employmentStatus', fn ($q) => $q->where('name', 'like', 'PPPK%'))->count();
 
+        // Pegawai ASN (tanpa PPPK / CPNS) untuk KPI total keseluruhan pegawai
+        $asnStatusCount = (clone $query)->whereHas('employmentStatus', fn ($q) => $q->where('name', 'ASN'))->count();
+
         $retiringSoon = (clone $query)->whereNotNull('retirement_date')
             ->whereBetween('retirement_date', [now(), now()->addYears(2)])
             ->count();
@@ -87,12 +130,16 @@ class DashboardService
             ->where('is_active', true)
             ->count();
 
+        // total keseluruhan pegawai aktif: ASN & PPPK + Non ASN
+        $totalAll = $totalAsn + $nonAsnCount;
+
         // pensiun tahun ini
         $retiringThisYear = (clone $query)->whereNotNull('retirement_date')
+            ->where('retirement_date', '>=', today()->toDateString())
             ->whereYear('retirement_date', now()->year)
             ->count();
 
-        return compact('totalAsn', 'averageAge', 'functionalCount', 'structuralCount', 'pppkCount', 'retiringSoon', 'nonAsnCount', 'retiringThisYear');
+        return compact('totalAsn', 'averageAge', 'functionalCount', 'structuralCount', 'pppkCount', 'retiringSoon', 'nonAsnCount', 'retiringThisYear', 'asnStatusCount', 'totalAll');
     }
 
     /**
@@ -100,10 +147,12 @@ class DashboardService
      */
     public function getStatusComposition(Builder $query): array
     {
+        // pegawai yang BUP-nya sudah terlewati tetap dihitung, namun
+        // otomatis digolongkan berstatus "Pensiun"
         return (clone $query)
             ->join('employment_statuses', 'employment_statuses.id', '=', 'employees.employment_status_id')
-            ->selectRaw('employment_statuses.name as label, COUNT(*) as total')
-            ->groupBy('employment_statuses.name')
+            ->selectRaw("CASE WHEN employees.retirement_date IS NOT NULL AND employees.retirement_date < ? THEN 'Pensiun' ELSE employment_statuses.name END as label, COUNT(*) as total", [today()->toDateString()])
+            ->groupBy('label')
             ->orderByDesc('total')
             ->get()
             ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total])
@@ -175,6 +224,96 @@ class DashboardService
     }
 
     /**
+     * Chart komposisi kemampuan berenang pegawai.
+     */
+    public function getSwimmingComposition(Builder $query): array
+    {
+        $canSwim = (clone $query)->where('swimming_skill', 'bisa')->count();
+        $cannotSwim = (clone $query)->where('swimming_skill', 'tidak')->count();
+        $unfilled = (clone $query)->count() - $canSwim - $cannotSwim;
+
+        return [
+            ['label' => 'Bisa Berenang', 'total' => $canSwim],
+            ['label' => 'Tidak Bisa Berenang', 'total' => $cannotSwim],
+            ['label' => 'Belum Diisi', 'total' => max($unfilled, 0)],
+        ];
+    }
+
+    /* ================= KENAIKAN GAJI BERKALA (KGB) ================= */
+
+    /**
+     * Pegawai ASN yang TMT golongannya diketahui — dasar perhitungan
+     * Kenaikan Gaji Berkala (KGB) berkala 2 tahun (ASN, CPNS & PPPK/P3K).
+     *
+     * @return \Illuminate\Support\Collection<int, Employee>
+     */
+    private function salaryRaiseCandidates(Builder $query): \Illuminate\Support\Collection
+    {
+        return (clone $query)
+            ->whereNotNull('employees.tmt_golongan')
+            // pegawai yang sudah pensiun tidak diikutkan proyeksi KGB
+            ->where(fn (Builder $q) => $q->whereNull('employees.retirement_date')
+                ->orWhere('employees.retirement_date', '>=', today()->toDateString()))
+            ->get();
+    }
+
+    /**
+     * Statistik Kenaikan Gaji Berkala (KGB) — periode 2 tahun.
+     */
+    public function getSalaryRaiseStats(Builder $query): array
+    {
+        $candidates = $this->salaryRaiseCandidates($query);
+
+        $dates = $candidates
+            ->map(fn (Employee $e) => $e->next_salary_raise)
+            ->filter()
+            ->values();
+
+        $today = today();
+        $oneYearAhead = now()->addYear();
+
+        $thisYear = $dates->filter(fn ($d) => $d->year === $today->year)->count();
+        $nextYear = $dates->filter(fn ($d) => $d->year === $today->year + 1)->count();
+
+        // jatuh tempo KGB dalam ≤ 1 tahun ke depan
+        $dueSoon = $dates->filter(fn ($d) => $d->greaterThanOrEqualTo($today)
+            && $d->lessThanOrEqualTo($oneYearAhead))->count();
+
+        // sudah melewati jadwal KGB (TMT golongan > 2 tahun, kenaikan belum
+        // diproses) — definisi sama dengan filter daftar pegawai ?kgb=overdue
+        $overdue = $candidates
+            ->filter(fn (Employee $e) => $e->tmt_golongan?->copy()->addYears(2)->lessThan($today))
+            ->count();
+
+        // proyeksi 5 tahun ke depan (untuk chart garis)
+        $projection = [];
+
+        for ($i = 0; $i < 5; $i++) {
+            $year = $today->year + $i;
+            $projection[] = [
+                'label' => (string) $year,
+                'total' => $dates->filter(fn ($d) => $d->year === $year)->count(),
+            ];
+        }
+
+        return compact('thisYear', 'nextYear', 'dueSoon', 'overdue', 'projection');
+    }
+
+    /**
+     * Daftar pegawai dengan estimasi KGB terdekat.
+     *
+     * @return \Illuminate\Support\Collection<int, Employee>
+     */
+    public function getUpcomingSalaryRaises(Builder $query, int $limit = 8): \Illuminate\Support\Collection
+    {
+        return $this->salaryRaiseCandidates($query)
+            ->filter(fn (Employee $e) => $e->next_salary_raise?->greaterThanOrEqualTo(today()) ?? false)
+            ->sortBy(fn (Employee $e) => $e->next_salary_raise->getTimestamp())
+            ->take($limit)
+            ->values();
+    }
+
+    /**
      * Chart proyeksi pensiun 5 tahun ke depan.
      */
     public function getRetirementProjection(Builder $query): array
@@ -209,6 +348,9 @@ class DashboardService
                 $q->whereNotNull('employees.next_promotion_date')
                     ->orWhereNotNull('employees.tmt_golongan');
             })
+            // pegawai yang sudah pensiun tidak diikutkan proyeksi kenaikan pangkat
+            ->where(fn (Builder $q) => $q->whereNull('employees.retirement_date')
+                ->orWhere('employees.retirement_date', '>=', today()->toDateString()))
             ->get();
     }
 

@@ -267,12 +267,16 @@ class NewFeaturesTest extends TestCase
             ->assertSee($own->name)
             ->assertSee('Profil Saya');
 
-        // tidak boleh melihat profil orang lain
-        $this->actingAs($pegawai)
+        // sejak 17 Sept 2026: pegawai BOLEH melihat profil pegawai lain (view only)
+        $response = $this->actingAs($pegawai)
             ->get("/employees/{$other->id}")
-            ->assertForbidden();
+            ->assertOk()
+            ->assertSee($other->name);
 
-        // tidak boleh membuka manajemen data pegawai
+        // tanpa tombol ubah (view only)
+        $this->assertStringNotContainsString(route('employees.edit', $other), $response->getContent());
+
+        // tidak boleh membuka manajemen data pegawai (CRUD khusus admin)
         $this->actingAs($pegawai)->get('/employees')->assertForbidden();
     }
 

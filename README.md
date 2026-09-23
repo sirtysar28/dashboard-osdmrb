@@ -394,3 +394,126 @@ php artisan config:clear
 php artisan route:clear
 ```
 # dashboard-osdmrb
+
+---
+
+## 🚀 Update 22 September 2026
+
+Penyempurnaan filter & formulir cuti (poin tambahan setelah catatan 17-09):
+
+1. **Dropdown multi-select checklist untuk filter** — filter yang bisa memilih lebih dari satu
+   (status kepegawaian, unit kerja, kategori non ASN, jenis cuti, status pengajuan) kini berupa
+   **dropdown yang membuka panel checklist saat diklik** (tinggi panel mengikuti jumlah opsi,
+   maks. 280px lalu scroll). Pilihan dapat dicentang lebih dari satu, tersedia aksi *Pilih semua* /
+   *Hapus*, dan label tombol menampilkan pilihan aktif (mis. "ASN, PPPK" atau "3 dipilih: …").
+   Diterapkan di: daftar pegawai ASN, direktori pegawai, pegawai non ASN, dan daftar pengajuan cuti
+   (jenis & status cuti kini juga bisa >1, kompatibel dengan tautan lama satu nilai).
+2. **Formulir pengajuan cuti — autofill pegawai login** — data pegawai (Bagian I) terisi otomatis
+   sesuai pegawai yang login; Admin / Biro SDM (HRD) dapat mengganti pegawai melalui
+   **pencarian nama/NIP** pada formulir.
+3. **Bagian V Catatan Cuti — nominal sisa cuti otomatis** — kolom **N-2 / N-1 / N** terisi otomatis
+   dari sistem: hak 12 hari/tahun dikurangi cuti tahunan yang pernah diajukan (yang tidak ditolak),
+   per tahun berjalan; nominal mengikuti pegawai yang dipilih admin.
+   Pegawai: readonly (nilai sistem). **Admin/HRD: dapat menyunting nominal** dan mengisi kolom
+   **Keterangan cuti** (tersimpan & tercetak di detail + PDF).
+   Kolom baru: `balance_year`, `annual_n2`, `annual_n1`, `annual_n`, `leave_note`
+   (migrasi `2026_09_22_000001`).
+4. **Semua kartu statistik dashboard kini dapat diklik** — termasuk dua kartu yang sebelumnya statis:
+   **Jatuh Tempo Kenaikan** (menuju filter `?naik=overdue` — estimasi kenaikan sudah terlewat) dan
+   **Jatuh Tempo KGB** (menuju `?kgb=overdue` — TMT golongan sudah > 2 tahun, KGB belum diproses).
+   Opsi "Jatuh tempo (terlewat)" juga tersedia di dropdown filter Kenaikan Jabatan & KGB pada
+   daftar pegawai; angka kartu konsisten dengan jumlah hasil filter.
+
+## 🚀 Update 17 September 2026
+
+Sumber: `Update/catatan - 17-09-2026.txt`. Semua 12 poin tambahan & revisi telah diterapkan:
+
+1. **Penamaan konsisten PNS → ASN** — seluruh tampilan, master status kepegawaian (kode & nama),
+   header export, template import, dan seeder kini memakai istilah **ASN** (CPNS & PPPK tetap).
+   Import lama tetap kompatibel (nilai `PNS` otomatis dipetakan ke `ASN`).
+2. **Grafik kemampuan berenang** — donut chart “Kemampuan Berenang” (bisa / tidak / belum diisi)
+   pada dashboard.
+3. **Chart KGB (Kenaikan Gaji Berkala)** — berkala 2 tahun untuk ASN, CPNS & PPPK/P3K;
+   dihitung dari TMT golongan (TMT + kelipatan 2 tahun). Tersedia kartu statistik, line chart,
+   tabel jadwal KGB terdekat, info KGB, serta filter `kgb` (tahun ini / ≤1 th / ≤2 th)
+   pada daftar pegawai. Estimasi KGB per pegawai juga tampil di detail pegawai & CV.
+4. **Kolom kemampuan Bahasa Inggris** — data personal pegawai (Tidak Bisa / Dasar / Menengah /
+   Lanjutan) pada form ASN, form Non ASN, detail pegawai, dan CV.
+5. **Data seminar/pelatihan dalam & luar negeri** — tipe baru **Seminar** & **Pelatihan** pada riwayat
+   pengembangan kompetensi plus kolom **Lingkup** (Dalam/Luar Negeri); dapat diinput admin
+   maupun pegawai sendiri (lihat poin 9).
+6. **Unduh CV pegawai (PDF)** — tombol *Unduh CV* pada detail pegawai & daftar pegawai;
+   layout CV resmi (kop, data personal, kepegawaian, pendidikan, riwayat pangkat, jabatan,
+   diklat/seminar/pelatihan, tanda tangan) siap cetak.
+7. **Menu Analisis Jabatan Pelaksana** — pemetaan formasi pelaksana/fungsional umum:
+   distribusi perjenjang (Pelaksana/Penyelia/Mahir/Terampil), sebaran unit, formasi kosong.
+8. **Cetak formulir cuti (PDF)** — tombol *Cetak / Unduh PDF* pada detail & daftar cuti;
+   format formulir resmi Bagian I–VIII lengkap dgn kop kementerian (siap print/tanda tangan).
+9. **Riwayat diklat & pelatihan di profil** — kartu “Riwayat Diklat, Seminar & Pelatihan” pada
+   detail pegawai; admin bagian maupun pegawai (profil sendiri) dapat menambah/menghapus
+   langsung dari halaman profil, termasuk unggah sertifikat.
+10. **Riwayat kenaikan pangkat** — tabel `employee_rank_histories` (contoh III/a → III/b):
+    input manual dari profil + **pencatatan otomatis** saat golongan pegawai diubah admin.
+11. **Direktori pegawai (view only)** — menu baru “Direktori Pegawai” untuk semua role;
+    pegawai biasa kini dapat **mencari & melihat profil pegawai lain** tanpa tombol ubah/hapus
+    (akses edit/CRUD tetap khusus admin).
+12. **Filter lebih dari satu (multi-select)** — status kepegawaian & unit kerja pada daftar
+    pegawai ASN, kategori pada pegawai Non ASN, dan status ASN pada filter dashboard kini
+    dapat dipilih lebih dari satu sekaligus (mis. ASN + PPPK).
+
+Migration: `2026_09_17_000001_update_features_september_17.php`
+(rename status PNS→ASN, kolom `english_skill`, tipe & lingkup `employee_trainings`,
+tabel `employee_rank_histories`). Test: `tests/Feature/UpdateSeptember17Test.php`.
+
+## 🚀 Update 11 September 2026
+
+### KPI Total Keseluruhan Pegawai di dashboard
+Baris kartu KPI baru **tepat di bawah filter** dashboard berisi data yang **tidak dobel**
+dengan stat-card-link:
+- **Total Keseluruhan Pegawai** — ASN & PPPK aktif + Non ASN (istilah PNS diganti ASN per 17 Sept 2026)
+- **ASN** — pegawai berstatus ASN aktif
+- **PPPK Aktif** — penuh & paruh waktu
+- **Non ASN** — pramubakti, security, dll
+
+### Stat-card-link di bawah KPI (setelah filter)
+Urutan dashboard kini: banner pengumuman → filter → KPI → kartu statistik. Kartu yang datanya dobel dengan KPI
+di atas (Total Pegawai ASN, Pegawai Non ASN, Pegawai PPPK) **dihapus** sehingga tidak ada informasi
+tertulis ganda. Kartu yang dipertahankan: Jabatan Struktural, Jabatan Fungsional, Akan Pensiun Tahun Ini,
+Pensiun ≤ 2 Tahun, Pengunjung Hari Ini, dan 3 kartu kenaikan jabatan/pangkat.
+
+### Pencarian pegawai pada halaman Pengguna
+Kolom "Data Pegawai" saat menambah pengguna kini berupa **pencarian interaktif** (ketik nama/NIP,
+klik hasil) — menggantikan dropdown panjang.
+
+### Kemampuan Berenang pada Informasi Personal pegawai
+Field baru `swimming_skill` (Bisa Berenang / Tidak Bisa Berenang) tersedia pada form pegawai ASN,
+form pegawai Non ASN, dan ditampilkan di kartu **Informasi Personal** halaman detail pegawai.
+Migrasi: `2026_09_11_000001`.
+
+### Pengajuan Cuti (fitur disiapkan — default NONAKTIF)
+Modul Pengajuan Cuti lengkap dengan workflow seperti persuratan:
+**PENDING → VERIFIED (Admin/Biro SDM) → APPROVED**, dengan opsi penolakan berikut alasannya.
+Pegawai dapat membatalkan pengajuan yang masih menunggu verifikasi.
+Formulir & halaman detail **mengikuti formulir resmi** *"FORM CUTI KOSONG — PNS dan PPPK"*
+Kementerian Transmigrasi RI (Bagian I Data Pegawai, II Jenis Cuti, III Alasan, IV Lamanya,
+V Catatan Cuti, VI Alamat Selama Cuti, VII Pertimbangan Atasan Langsung & VIII Keputusan Pejabat):
+- Jenis cuti: Tahunan, Besar, Sakit, Melahirkan, Karena Alasan Penting, di Luar Tanggungan Negara.
+- Data pegawai (nama, NIP, jabatan, **masa kerja**, unit eselon II) terisi otomatis & autofill saat admin memilih pegawai.
+- Jumlah hari cuti dihitung otomatis dari rentang tanggal (Bagian IV).
+- Alamat & telepon selama menjalankan cuti tersimpan (Bagian VI, kolom `address_during_leave` / `phone_during_leave`).
+- Menunggu kepastian **ttd digital** sehingga default-nya nonaktif.
+- Aktifkan/nonaktifkan: **Pengaturan → Tampilan & Menu → Pengajuan Cuti** (kunci `menu_cuti`).
+- Notifikasi email ke Administrator Utama dapat dinyalakan pada **Pengaturan → SMTP & Notifikasi**.
+- Tabel baru `leave_requests` (migrasi `2026_09_11_000002` + `2026_09_11_000003`), menu sidebar "Pengajuan Cuti".
+
+### Informasi login demo dihapus
+Blok akun demo (email & password contoh) dihapus dari form login.
+
+### Deployment update ini
+```bash
+composer install --no-dev
+php artisan migrate --force   # swimming_skill + leave_requests (formulir cuti)
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```

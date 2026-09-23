@@ -25,12 +25,14 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Data Pegawai (opsional)</label>
-                    <select name="employee_id" class="form-select">
-                        <option value="">- Tidak terhubung -</option>
-                        @foreach ($employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }} — {{ $employee->nip }}</option>
-                        @endforeach
-                    </select>
+                    <div class="position-relative" id="employeePicker" data-employees="{{ $employees->map(fn ($e) => ['id' => $e->id, 'name' => $e->name, 'nip' => $e->nip])->values() }}">
+                        <input type="text" class="form-control" id="employeeSearchInput" autocomplete="off"
+                               placeholder="Cari nama / NIP pegawai..." aria-describedby="employeeSelectedText">
+                        <div class="list-group position-absolute w-100 shadow"
+                             id="employeeResults" style="z-index:1050; display:none; max-height:260px; overflow-y:auto; border-radius:10px"></div>
+                        <input type="hidden" name="employee_id" id="employeeIdInput" value="{{ old('employee_id') }}">
+                        <div class="form-text" id="employeeSelectedText">- Tidak terhubung -</div>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Peran</label>
@@ -179,3 +181,93 @@
 @endforeach
 
 @endsection
+
+@push('scripts')
+<script>
+    /* ============ PENCARIAN PEGAWAI SAAT TAMBAH PENGGUNA ============ */
+    document.addEventListener('DOMContentLoaded', function () {
+        var picker   = document.getElementById('employeePicker');
+        if (!picker) return;
+
+        var input    = document.getElementById('employeeSearchInput');
+        var results  = document.getElementById('employeeResults');
+        var hidden   = document.getElementById('employeeIdInput');
+        var selected = document.getElementById('employeeSelectedText');
+
+        var employees = [];
+        try { employees = JSON.parse(picker.dataset.employees); } catch (e) {}
+
+        var selectedId = hidden.value ? parseInt(hidden.value, 10) : null;
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderSelected() {
+            var employee = employees.find(function (e) { return e.id === selectedId; });
+
+            if (employee) {
+                selected.innerHTML = '<i class="bi bi-person-check-fill text-success me-1"></i>' +
+                    escapeHtml(employee.name) + ' — ' + escapeHtml(employee.nip);
+            } else if (selectedId) {
+                selected.textContent = 'Pegawai #' + selectedId + ' terpilih.';
+            } else {
+                selected.textContent = '- Tidak terhubung -';
+            }
+        }
+
+        function renderResults(keyword) {
+            var q = keyword.trim().toLowerCase();
+
+            var matches = employees.filter(function (e) {
+                if (!q) return true;
+                return e.name.toLowerCase().indexOf(q) !== -1
+                    || (e.nip || '').toLowerCase().indexOf(q) !== -1;
+            });
+
+            results.innerHTML = matches.length
+                ? matches.slice(0, 50).map(function (e) {
+                    return '<button type="button" class="list-group-item list-group-item-action py-2" data-id="' + e.id + '">' +
+                           '<i class="bi bi-person me-1 text-secondary"></i><strong>' + escapeHtml(e.name) + '</strong>' +
+                           '<small class="d-block text-muted" style="font-size:11px">' + escapeHtml(e.nip) + '</small>' +
+                           '</button>';
+                }).join('')
+                : '<div class="list-group-item text-muted small py-2">Pegawai tidak ditemukan.</div>';
+
+            results.style.display = 'block';
+        }
+
+        input.addEventListener('focus', function () { renderResults(input.value); });
+
+        input.addEventListener('input', function () {
+            // mengetik ulang = batalkan pilihan sebelumnya
+            selectedId = null;
+            hidden.value = '';
+            renderSelected();
+            renderResults(input.value);
+        });
+
+        results.addEventListener('click', function (event) {
+            var item = event.target.closest('[data-id]');
+            if (!item) return;
+
+            selectedId = parseInt(item.dataset.id, 10);
+            hidden.value = selectedId;
+
+            var employee = employees.find(function (e) { return e.id === selectedId; });
+            input.value = employee ? employee.name : '';
+
+            results.style.display = 'none';
+            renderSelected();
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!picker.contains(event.target)) results.style.display = 'none';
+        });
+
+        renderSelected();
+    });
+</script>
+@endpush

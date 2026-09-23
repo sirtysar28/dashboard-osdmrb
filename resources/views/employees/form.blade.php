@@ -63,6 +63,23 @@
                         </select>
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Kemampuan Berenang</label>
+                        <select name="swimming_skill" class="form-select">
+                            <option value="">- Pilih -</option>
+                            <option value="bisa" {{ old('swimming_skill', $employee->swimming_skill) === 'bisa' ? 'selected' : '' }}>Bisa Berenang</option>
+                            <option value="tidak" {{ old('swimming_skill', $employee->swimming_skill) === 'tidak' ? 'selected' : '' }}>Tidak Bisa Berenang</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Kemampuan Bahasa Inggris</label>
+                        <select name="english_skill" class="form-select">
+                            <option value="">- Pilih -</option>
+                            @foreach (\App\Models\Employee::ENGLISH_SKILLS as $value => $label)
+                                <option value="{{ $value }}" {{ old('english_skill', $employee->english_skill) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label">Tempat Lahir</label>
                         <input type="text" name="birth_place" class="form-control" value="{{ old('birth_place', $employee->birth_place) }}">
                     </div>
@@ -135,7 +152,7 @@
                         <label class="form-label">Eselon (Struktural)</label>
                         <select name="eselon" class="form-select">
                             <option value="">- Bukan Struktural -</option>
-                            @foreach (['II', 'III', 'IV'] as $eselon)
+                            @foreach (['I', 'II', 'III', 'IV'] as $eselon)
                                 <option value="{{ $eselon }}" {{ old('eselon', $employee->eselon) === $eselon ? 'selected' : '' }}>Eselon {{ $eselon }}</option>
                             @endforeach
                         </select>
@@ -158,7 +175,7 @@
                         <input type="date" name="tmt_cpns" class="form-control" value="{{ old('tmt_cpns', $employee->tmt_cpns?->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">TMT PNS</label>
+                        <label class="form-label">TMT ASN</label>
                         <input type="date" name="tmt_pns" class="form-control" value="{{ old('tmt_pns', $employee->tmt_pns?->format('Y-m-d')) }}">
                     </div>
                     <div class="col-md-4">

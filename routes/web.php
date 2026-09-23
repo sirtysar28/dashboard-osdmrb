@@ -9,6 +9,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LetterController;
 use App\Http\Controllers\LetterTypeController;
+use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ProfileController;
@@ -67,6 +68,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
         Route::get('/modul/analisis-jabatan-fungsional', [ModuleController::class, 'analisisJabatan'])->name('modules.analisis-jabatan');
         Route::get('/modul/analisis-jabatan-struktural', [ModuleController::class, 'analisisJabatanStruktural'])->name('modules.analisis-jabatan-struktural');
+        Route::get('/modul/analisis-jabatan-pelaksana', [ModuleController::class, 'analisisJabatanPelaksana'])->name('modules.analisis-jabatan-pelaksana');
         Route::get('/modul/reformasi-birokrasi', [ModuleController::class, 'reformasiBirokrasi'])->name('modules.reformasi-birokrasi');
         Route::get('/modul/manajemen-talenta', [ModuleController::class, 'manajemenTalenta'])->name('modules.manajemen-talenta');
         Route::get('/modul/diklat', [ModuleController::class, 'diklat'])->name('modules.diklat');
@@ -79,15 +81,51 @@ Route::middleware('auth')->group(function () {
         Route::get('/modul/sop-kementerian/{sop}/preview', [ModuleController::class, 'sopPreview'])->name('modules.sop.preview');
     });
 
-    /* ================= MUTASI MODUL (ADMIN & BIRO SDM) ================= */
-    Route::middleware('role:admin,biro_sdm,super_admin')->group(function () {
-        // Riwayat diklat pegawai
+    /* ================= RIWAYAT DIKLAT PEGAWAI =================
+       Admin/biro SDM dapat input utk pegawai mana pun; pegawai dapat
+       menambahkan sendiri pada halaman profilnya (validasi di controller). */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
         Route::post('/modul/diklat', [ModuleController::class, 'diklatStore'])->name('modules.diklat.store');
         Route::delete('/modul/diklat/{training}', [ModuleController::class, 'diklatDestroy'])->name('modules.diklat.destroy');
+    });
 
+    /* ================= DIREKTORI PEGAWAI (semua role — view only) ================= */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::get('/direktori-pegawai', [EmployeeController::class, 'directory'])->name('employees.directory');
+    });
+
+    /* ================= DETAIL PEGAWAI & CV (view only — semua role) =================
+       whereNumber mencegah bentrok dgn route literal /employees/non-asn, /employees/export, dll. */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::get('/employees/{employee}/cv', [EmployeeController::class, 'cv'])->name('employees.cv')->whereNumber('employee');
+        Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show')->whereNumber('employee');
+    });
+
+    /* ================= RIWAYAT KENAIKAN PANGKAT (admin atau pegawai pemilik profil) ================= */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::post('/employees/{employee}/riwayat-pangkat', [EmployeeController::class, 'storeRankHistory'])->name('employees.rank-histories.store')->whereNumber('employee');
+        Route::delete('/employees/riwayat-pangkat/{rank_history}', [EmployeeController::class, 'destroyRankHistory'])->name('employees.rank-histories.destroy');
+    });
+
+    /* ================= MUTASI MODUL (ADMIN & BIRO SDM) ================= */
+    Route::middleware('role:admin,biro_sdm,super_admin')->group(function () {
         // SOP Kementerian
         Route::post('/modul/sop-kementerian', [ModuleController::class, 'sopStore'])->name('modules.sop.store');
         Route::delete('/modul/sop-kementerian/{sop}', [ModuleController::class, 'sopDestroy'])->name('modules.sop.destroy');
+    });
+
+    /* ================= PENGAJUAN CUTI (bisa diaktifkan/nonaktifkan dari Pengaturan) =================
+       Fitur menunggu kepastian tanda tangan digital (ttd digital). */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::get('/cuti', [LeaveRequestController::class, 'index'])->name('leaves.index');
+        Route::get('/cuti/ajukan', [LeaveRequestController::class, 'create'])->name('leaves.create');
+        Route::post('/cuti', [LeaveRequestController::class, 'store'])->name('leaves.store');
+        Route::get('/cuti/{leave}', [LeaveRequestController::class, 'show'])->name('leaves.show');
+        Route::get('/cuti/{leave}/cetak', [LeaveRequestController::class, 'print'])->name('leaves.print');
+        Route::post('/cuti/{leave}/verifikasi', [LeaveRequestController::class, 'verify'])->name('leaves.verify');
+        Route::post('/cuti/{leave}/setujui', [LeaveRequestController::class, 'approve'])->name('leaves.approve');
+        Route::post('/cuti/{leave}/tolak', [LeaveRequestController::class, 'reject'])->name('leaves.reject');
+        Route::delete('/cuti/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');
     });
 
     /* ================= LAYANAN PERSURATAN ================= */
@@ -143,7 +181,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/employees/non-asn/{employee}/edit', [EmployeeController::class, 'nonAsnEdit'])->name('employees.non-asn.edit');
         Route::put('/employees/non-asn/{employee}', [EmployeeController::class, 'nonAsnUpdate'])->name('employees.non-asn.update');
 
-        Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
         Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
         Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
