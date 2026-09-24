@@ -25,7 +25,7 @@ class DashboardController extends Controller
         $query = $this->service->applyFilters($this->service->baseQuery(), $filters);
 
         $data = [
-            'summary' => $this->service->getSummary($query),
+            'summary' => $this->service->getSummary($query, $this->service->nonAsnQuery($filters)),
             'statusComposition' => $this->service->getStatusComposition($query),
             'educationChart' => $this->service->getEducationChart($query),
             'rankChart' => $this->service->getRankChart($query),

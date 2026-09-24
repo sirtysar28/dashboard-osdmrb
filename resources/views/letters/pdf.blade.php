@@ -34,7 +34,7 @@
                     <img src="{{ public_path('images/logo-kementerian.png') }}" style="width:86px;" alt="Logo">
                 </td>
                 <td style="vertical-align:middle; text-align:center;">
-                    <h2>KEMENTERIAN TRANSIGRASI REPUBLIK INDONESIA</h2>
+                    <h2>KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA</h2>
                     <p class="unit">BIRO ORGANISASI, SUMBER DAYA MANUSIA DAN REFORMASI BIROKRASI</p>
                     <p>Jalan Ir. H. Juanda No. 00, Jakarta 10110 &bull; Telepon (021) 000000 &bull; Surel biro.osdmrb@kemen.go.id</p>
                 </td>

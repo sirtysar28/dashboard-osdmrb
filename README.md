@@ -118,15 +118,7 @@ php artisan storage:link
 php artisan serve
 ```
 
-Buka `http://127.0.0.1:8000`.
 
-### Akun Demo
-
-| Peran | Email | Password | Akses |
-|---|---|---|---|
-| Admin Instansi | `admin@osdmrb.go.id` | `password` | Semua fitur |
-| Biro SDM | `sdm@osdmrb.go.id` | `password` | Dashboard, pegawai, surat/arsip + approval; master data hanya lihat |
-| Pegawai | `pegawai@osdmrb.go.id` | `password` | Beranda, profil sendiri, pengajuan surat/arsip |
 
 ---
 
@@ -394,6 +386,47 @@ php artisan config:clear
 php artisan route:clear
 ```
 # dashboard-osdmrb
+
+---
+
+## 🚀 Update 24 September 2026 (Revisi catatan rapat 23 Sept)
+
+Sumber: `Update/Catatan Rapat dashboard Osdmrb 23 Sept REV.docx`. Semua 8 poin telah diterapkan:
+
+1. **Tanpa kata "aktif" pada nama ASN & PPPK** — kartu KPI dashboard kini cukup "ASN", "PPPK",
+   dan "ASN & PPPK + Non ASN" (sebelumnya "PPPK Aktif", "berstatus ASN aktif", dst.).
+2. **Data pribadi Detail Pegawai disembunyikan bagi user pegawai** — **No. HP** dan **Alamat**
+   hanya terlihat oleh admin (admin/biro SDM/super admin) atau pemilik profil sendiri;
+   pegawai lain melihat `•••••••• (disembunyikan — hanya admin)`.
+3. **Unduh CV dibatasi** — CV (PDF) hanya dapat diunduh oleh **pegawai yang bersangkutan**
+   atau **admin**; pegawai lain mendapat 403 dan tombol unduh tidak tampil di direktori/detail
+   (proteksi di `EmployeeController@cv`, bukan hanya di tombol).
+4. **Perbaikan judul CV** — judul resmi **"KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA"**
+   (bukan "Transigrasi"), **subjudul Biro OSDMRB dihilangkan**, dan **logo Kementerian
+   Transmigrasi ditambahkan di paling atas**. Typo "TRANSIGRASI" juga diperbaiki pada kop
+   surat (`letters/pdf`) dan formulir cuti (`cuti/pdf`).
+5. **Filter dashboard menampilkan jumlah ASN & PPPK berikut infografisnya** — seluruh kartu KPI
+   (Total, ASN, PPPK, Non ASN) dan semua grafik mengikuti filter aktif secara konsisten.
+6. **Non ASN tidak lagi muncul sama di semua filter** — jumlah KPI Non ASN kini **mengikuti filter
+   unit kerja (Eselon I/II/Balai beserta turunannya) & pencarian** melalui `DashboardService::nonAsnQuery()`,
+   sehingga jumlah Non ASN berbeda-beda per eselon/balai.
+7. **Pencarian direktori pegawai diperbaiki** — pencarian nama/NIP di `/direktori-pegawai` sebelumnya
+   selalu mencari nilai `1` (bug parameter `when($request->filled('search'))`); kini berfungsi normal.
+8. **Struktur Unit Kerja Eselon I tidak dobel** — total **tepat 4 unit Eselon I**
+   (Setjen, Itjen, Ditjen Pengembangan Ekonomi & Pemberdayaan Masyarakat Transmigrasi, Ditjen
+   Pembangunan & Pengembangan Kawasan Transmigrasi). Duplikat digabungkan otomatis (pegawai,
+   riwayat jabatan, arsip, dan unit turunan dipindah lebih dulu), bagan berakar pada unit
+   KEMENTERIAN yang sebenarnya, dan **pegawai Non ASN tanpa unit kerja dimasukkan ke
+   Sekretariat Jenderal** (migrasi `2026_09_24_000001`, idempoten & aman diulang).
+
+### Deployment update ini
+```bash
+composer install --no-dev
+php artisan migrate --force   # dedupe Eselon I + Non ASN masuk Setjen
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
 
 ---
 

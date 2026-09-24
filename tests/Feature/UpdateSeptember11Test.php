@@ -116,17 +116,17 @@ class UpdateSeptember11Test extends TestCase
 
         // simpan lewat form ubah pegawai
         $this->actingAs($this->admin)
-            ->put("/employees/{$employee->id}", $this->employeePayload($employee, ['swimming_skill' => 'bisa']))
+            ->put("/employees/{$employee->id}", $this->employeePayload($employee, ['swimming_skill' => 'lulus']))
             ->assertRedirect(route('employees.show', $employee));
 
-        $this->assertDatabaseHas('employees', ['id' => $employee->id, 'swimming_skill' => 'bisa']);
+        $this->assertDatabaseHas('employees', ['id' => $employee->id, 'swimming_skill' => 'lulus']);
 
         // tampil pada Informasi Personal di halaman detail
         $this->actingAs($this->admin)
             ->get("/employees/{$employee->id}")
             ->assertOk()
-            ->assertSee('Kemampuan Berenang')
-            ->assertSee('Bisa Berenang');
+            ->assertSee('Kemampuan Renang')
+            ->assertSee('Lulus Ujian Renang');
     }
 
     public function test_form_pegawai_menampilkan_pilihan_kemampuan_berenang(): void
@@ -135,8 +135,8 @@ class UpdateSeptember11Test extends TestCase
             ->get('/employees/create')
             ->assertOk()
             ->assertSee('name="swimming_skill"', false)
-            ->assertSee('Bisa Berenang')
-            ->assertSee('Tidak Bisa Berenang');
+            ->assertSee('Lulus Ujian Renang')
+            ->assertSee('Belum Lulus Ujian');
     }
 
     /* ================= 5. PENGAJUAN CUTI ================= */

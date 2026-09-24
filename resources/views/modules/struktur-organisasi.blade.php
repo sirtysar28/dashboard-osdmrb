@@ -116,7 +116,8 @@
 
             <div class="org-tree-scroll org-zoom-viewport" data-zoom-viewport="tree">
                 <div class="org-tree org-zoom-stage" data-zoom-stage="tree">
-                    @include('modules.partials.unit-node', ['node' => ['unit' => (object) ['id' => null, 'name' => 'Kementerian Transmigrasi', 'code' => 'ROOT', 'level' => 'KEMENTERIAN'], 'children' => $tree], 'isRoot' => true])
+                    {{-- tree sudah berakar pada unit KEMENTERIAN dari controller --}}
+                    @include('modules.partials.unit-node', ['node' => $tree->first(), 'isRoot' => true])
                 </div>
             </div>
         </div>

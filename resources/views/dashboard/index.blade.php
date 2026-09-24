@@ -69,7 +69,9 @@
 
 <!-- ================= KPI TOTAL KESELURUHAN PEGAWAI (di bawah filter) =================
      Isi khusus (tidak dobel dengan stat-card-link di bawah):
-     Total keseluruhan (ASN & PPPK aktif & Non ASN) beserta rinciannya. -->
+     Total keseluruhan (ASN & PPPK & Non ASN) beserta rinciannya.
+     Catatan rapat 23 Sept 2026: tanpa kata "aktif" pada nama ASN & PPPK;
+     jumlah mengikuti filter (unit & pencarian), termasuk Non ASN. -->
 <div class="row g-3 mb-4">
     <div class="col-lg-3 col-md-6">
         <div class="kpi-card">
@@ -77,7 +79,7 @@
             <div class="kpi-body">
                 <span>Total Keseluruhan Pegawai</span>
                 <h1>{{ number_format($summary['totalAll']) }}</h1>
-                <small class="d-block text-white-50" style="font-size:11.5px">ASN &amp; PPPK aktif + Non ASN</small>
+                <small class="d-block text-white-50" style="font-size:11.5px">ASN &amp; PPPK + Non ASN</small>
             </div>
         </div>
     </div>
@@ -87,7 +89,7 @@
             <div class="kpi-body">
                 <span>ASN</span>
                 <h1>{{ number_format($summary['asnStatusCount']) }}</h1>
-                <small class="d-block text-white-50" style="font-size:11.5px">pegawai berstatus ASN aktif</small>
+                <small class="d-block text-white-50" style="font-size:11.5px">pegawai berstatus ASN</small>
             </div>
         </div>
     </div>
@@ -95,7 +97,7 @@
         <div class="kpi-card">
             <div class="kpi-icon"><i class="bi bi-file-earmark-person"></i></div>
             <div class="kpi-body">
-                <span>PPPK Aktif</span>
+                <span>PPPK</span>
                 <h1>{{ number_format($summary['pppkCount']) }}</h1>
                 <small class="d-block text-white-50" style="font-size:11.5px">penuh &amp; paruh waktu</small>
             </div>
@@ -324,7 +326,7 @@
 <div class="row g-3 mb-4">
     <div class="col-lg-4">
         <div class="chart-card h-100">
-            <h5><i class="bi bi-water me-2"></i>Kemampuan Berenang</h5>
+            <h5><i class="bi bi-water me-2"></i>Kemampuan Renang</h5>
             <div class="chart-wrap chart-wrap-donut"><canvas id="swimmingChart"></canvas></div>
         </div>
     </div>

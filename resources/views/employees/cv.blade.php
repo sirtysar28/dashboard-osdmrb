@@ -7,8 +7,7 @@
         @page { margin: 1.6cm 1.8cm; }
         body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #1a1a1a; line-height: 1.55; }
         .kop { border-bottom: 3px solid #163d4f; padding-bottom: 10px; margin-bottom: 16px; }
-        .kop h1 { margin: 0; font-size: 19px; color: #163d4f; letter-spacing: .5px; }
-        .kop .unit { margin: 3px 0 0; font-size: 11px; font-weight: bold; color: #2b5f78; }
+        .kop h1 { margin: 6px 0 0; font-size: 19px; color: #163d4f; letter-spacing: .5px; }
         .judul { text-align: center; margin: 4px 0 16px; }
         .judul h2 { margin: 0; font-size: 15px; letter-spacing: 3px; text-decoration: underline; }
         table.cv { width: 100%; border-collapse: collapse; }
@@ -30,9 +29,19 @@
 <body>
 
     {{-- ================== KOP ================== --}}
+    {{-- Catatan rapat 23 Sept 2026: judul "Transmigrasi" (bukan Transigrasi),
+         subjudul Biro OSDMRB dihilangkan, ditambah logo Kementerian --}}
     <div class="kop">
-        <h1>KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA</h1>
-        <p class="unit">BIRO ORGANISASI, SUMBER DAYA MANUSIA DAN REFORMASI BIROKRASI</p>
+        <table style="width:100%">
+            <tr>
+                <td style="width:70px"></td>
+                <td style="text-align:center">
+                    <img src="{{ public_path('images/logo-kementerian.png') }}" style="width:62px;" alt="Logo Kementerian Transmigrasi">
+                    <h1>KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA</h1>
+                </td>
+                <td style="width:70px"></td>
+            </tr>
+        </table>
     </div>
 
     {{-- ================== JUDUL ================== --}}
@@ -69,7 +78,7 @@
                 <td class="label">Usia</td><td>: {{ $employee->age ?? '-' }} tahun</td>
             </tr>
             <tr>
-                <td class="label">Kemampuan Berenang</td><td>: {{ $employee->swimming_skill_label }}</td>
+                <td class="label">Kemampuan Renang</td><td>: {{ $employee->swimming_skill_label }}</td>
                 <td class="label">Bahasa Inggris</td><td>: {{ $employee->english_skill_label }}</td>
             </tr>
             <tr>

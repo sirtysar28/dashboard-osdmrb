@@ -63,11 +63,11 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Kemampuan Berenang</label>
+                        <label class="form-label">Kemampuan Renang</label>
                         <select name="swimming_skill" class="form-select">
                             <option value="">- Pilih -</option>
-                            <option value="bisa" {{ old('swimming_skill', $employee->swimming_skill) === 'bisa' ? 'selected' : '' }}>Bisa Berenang</option>
-                            <option value="tidak" {{ old('swimming_skill', $employee->swimming_skill) === 'tidak' ? 'selected' : '' }}>Tidak Bisa Berenang</option>
+                            <option value="lulus" {{ old('swimming_skill', $employee->swimming_skill) === 'lulus' ? 'selected' : '' }}>Lulus Ujian Renang</option>
+                            <option value="belum" {{ old('swimming_skill', $employee->swimming_skill) === 'belum' ? 'selected' : '' }}>Belum Lulus Ujian</option>
                         </select>
                     </div>
                     <div class="col-md-6">

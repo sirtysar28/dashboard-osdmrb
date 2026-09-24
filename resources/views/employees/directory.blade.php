@@ -84,9 +84,12 @@
                             <a href="{{ route('employees.show', $employee) }}" class="btn btn-sm btn-outline-osdmrb" title="Lihat Detail (view only)">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{{ route('employees.cv', $employee) }}" class="btn btn-sm btn-outline-secondary" title="Unduh CV (PDF)" data-no-loader>
-                                <i class="bi bi-file-earmark-person"></i>
-                            </a>
+                            {{-- Catatan rapat 23 Sept 2026: unduh CV hanya admin / pemilik profil --}}
+                            @if (auth()->user()->isPrivileged())
+                                <a href="{{ route('employees.cv', $employee) }}" class="btn btn-sm btn-outline-secondary" title="Unduh CV (PDF)" data-no-loader>
+                                    <i class="bi bi-file-earmark-person"></i>
+                                </a>
+                            @endif
                         </td>
                     </tr>
                 @empty

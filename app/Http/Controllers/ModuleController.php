@@ -470,8 +470,20 @@ class ModuleController extends Controller
     {
         $units = Unit::where('is_active', true)->orderBy('name')->get();
 
-        // Susun tree: KEMENTERIAN -> ES_I -> ES_II/ES_III -> BALAI/LAINNYA
-        $tree = $this->buildUnitTree($units);
+        // Catatan rapat 23 Sept 2026: bagan berakar pada unit KEMENTERIAN yang
+        // sebenarnya (bukan root sintetis) agar Eselon I tidak tampil dobel —
+        // total Eselon I = 4 (Setjen, Itjen, dan 2 Ditjen).
+        $root = $units->firstWhere('level', 'KEMENTERIAN');
+
+        if ($root) {
+            $children = $this->buildUnitTree($units->reject(fn ($u) => $u->id === $root->id)->values(), $root->id);
+        } else {
+            // fallback: belum ada unit KEMENTERIAN — pakai node sintetis
+            $root = (object) ['id' => null, 'name' => 'Kementerian Transmigrasi', 'code' => 'ROOT', 'level' => 'KEMENTERIAN'];
+            $children = $this->buildUnitTree($units);
+        }
+
+        $tree = collect([['unit' => $root, 'children' => $children]]);
 
         $stats = [
             'es1' => $units->where('level', 'ES_I')->count(),

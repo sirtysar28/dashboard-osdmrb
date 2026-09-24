@@ -134,8 +134,8 @@ class Employee extends Model
     public function getSwimmingSkillLabelAttribute(): string
     {
         return match ($this->swimming_skill) {
-            'bisa' => 'Bisa Berenang',
-            'tidak' => 'Tidak Bisa Berenang',
+            'lulus' => 'Lulus Ujian Renang',
+            'belum' => 'Belum Lulus Ujian',
             default => '-',
         };
     }

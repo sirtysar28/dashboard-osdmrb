@@ -56,9 +56,9 @@ class EmployeeController extends Controller
         $employees = Employee::query()
             ->with(['unit', 'employmentStatus', 'rank', 'education'])
             ->where('is_active', true)
-            ->when($request->filled('search'), fn ($q, $v) => $q->where(fn ($w) => $w
-                ->where('name', 'like', "%{$v}%")
-                ->orWhere('nip', 'like', "%{$v}%")))
+            ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('name', 'like', '%'.$request->search.'%')
+                ->orWhere('nip', 'like', '%'.$request->search.'%')))
             ->when($request->filled('jenis'), function ($q, $v) {
                 if ($v === 'asn') {
                     $q->where('employee_type', '!=', Employee::TYPE_NON_ASN);
@@ -247,7 +247,7 @@ class EmployeeController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'address' => ['nullable', 'string', 'max:1000'],
-            'swimming_skill' => ['nullable', 'in:bisa,tidak'],
+            'swimming_skill' => ['nullable', 'in:lulus,belum'],
             'english_skill' => ['nullable', 'in:'.implode(',', array_keys(Employee::ENGLISH_SKILLS))],
         ]);
 
@@ -334,9 +334,18 @@ class EmployeeController extends Controller
 
     /**
      * Unduh / cetak CV pegawai (PDF, format CURRICULUM VITAE siap cetak).
+     *
+     * Catatan rapat 23 Sept 2026: CV hanya boleh diunduh oleh pegawai yang
+     * bersangkutan (profil sendiri) atau admin (admin/biro SDM/super admin).
      */
-    public function cv(Employee $employee)
+    public function cv(Request $request, Employee $employee)
     {
+        $user = $request->user();
+
+        abort_unless($user->isPrivileged() || $user->employee_id === $employee->id,
+            403,
+            'Unduhan CV hanya untuk pegawai yang bersangkutan atau admin.');
+
         $employee->load(['unit', 'education', 'rank', 'employmentStatus',
             'positions.position', 'positions.unit', 'trainings',
             'rankHistories.oldRank', 'rankHistories.newRank']);
@@ -739,7 +748,7 @@ class EmployeeController extends Controller
             'birth_place' => ['nullable', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'religion' => ['nullable', 'max:30'],
-            'swimming_skill' => ['nullable', 'in:bisa,tidak'],
+            'swimming_skill' => ['nullable', 'in:lulus,belum'],
             'english_skill' => ['nullable', 'in:'.implode(',', array_keys(Employee::ENGLISH_SKILLS))],
             'address' => ['nullable'],
             'employment_status_id' => ['nullable', 'exists:employment_statuses,id'],

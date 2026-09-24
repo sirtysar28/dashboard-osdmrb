@@ -79,6 +79,33 @@ class DashboardService
     }
 
     /**
+     * Query pegawai NON ASN aktif — KPI Non ASN ikut filter dashboard
+     * (catatan rapat 23 Sept 2026: jumlah Non ASN berbeda-beda per
+     * eselon/balai, tidak lagi muncul sama di semua filter).
+     * Filter yang relevan: unit kerja (es1/es2/balai + turunannya)
+     * dan pencarian nama/NIP.
+     */
+    public function nonAsnQuery(array $filters): Builder
+    {
+        $query = Employee::query()
+            ->where('employee_type', Employee::TYPE_NON_ASN)
+            ->where('is_active', true);
+
+        $unitIds = collect([$filters['es1'] ?? [], $filters['es2'] ?? [], $filters['balai'] ?? []])
+            ->flatten()
+            ->filter()
+            ->values();
+
+        $query->when($unitIds->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($unitIds)));
+
+        $query->when($filters['search'] ?? null, fn (Builder $q, $v) => $q->where(fn ($w) => $w
+            ->where('name', 'like', "%{$v}%")
+            ->orWhere('nip', 'like', "%{$v}%")));
+
+        return $query;
+    }
+
+    /**
      * Kumpulkan ID unit terpilih beserta SELURUH TURUNANNYA
      * (berjenjang ke bawah: es I -> es II -> bagian -> subbagian ...)
      * supaya pegawai di unit turunan mana pun ikut terhitung.
@@ -101,8 +128,11 @@ class DashboardService
 
     /**
      * Ringkasan KPI dashboard.
+     *
+     * @param  Builder|null  $nonAsnQuery  query Non ASN yang sudah difilter
+     *   (unit & pencarian) — bila null dipakai jumlah Non ASN keseluruhan.
      */
-    public function getSummary(Builder $query): array
+    public function getSummary(Builder $query, ?Builder $nonAsnQuery = null): array
     {
         $totalAsn = (clone $query)->count();
 
@@ -125,10 +155,12 @@ class DashboardService
             ->whereBetween('retirement_date', [now(), now()->addYears(2)])
             ->count();
 
-        // pegawai non ASN (tidak terpengaruh filter unit ASN)
-        $nonAsnCount = Employee::where('employee_type', Employee::TYPE_NON_ASN)
-            ->where('is_active', true)
-            ->count();
+        // pegawai non ASN — mengikuti filter unit & pencarian bila ada
+        $nonAsnCount = $nonAsnQuery
+            ? (clone $nonAsnQuery)->count()
+            : Employee::where('employee_type', Employee::TYPE_NON_ASN)
+                ->where('is_active', true)
+                ->count();
 
         // total keseluruhan pegawai aktif: ASN & PPPK + Non ASN
         $totalAll = $totalAsn + $nonAsnCount;
@@ -228,13 +260,13 @@ class DashboardService
      */
     public function getSwimmingComposition(Builder $query): array
     {
-        $canSwim = (clone $query)->where('swimming_skill', 'bisa')->count();
-        $cannotSwim = (clone $query)->where('swimming_skill', 'tidak')->count();
+        $canSwim = (clone $query)->where('swimming_skill', 'lulus')->count();
+        $cannotSwim = (clone $query)->where('swimming_skill', 'belum')->count();
         $unfilled = (clone $query)->count() - $canSwim - $cannotSwim;
 
         return [
-            ['label' => 'Bisa Berenang', 'total' => $canSwim],
-            ['label' => 'Tidak Bisa Berenang', 'total' => $cannotSwim],
+            ['label' => 'Lulus Ujian Renang', 'total' => $canSwim],
+            ['label' => 'Belum Lulus Ujian', 'total' => $cannotSwim],
             ['label' => 'Belum Diisi', 'total' => max($unfilled, 0)],
         ];
     }

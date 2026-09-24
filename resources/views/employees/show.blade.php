@@ -5,6 +5,11 @@
 
 @php($canManage = auth()->user()->isPrivileged() || ($isOwnProfile ?? false))
 
+{{-- Catatan rapat 23 Sept 2026: data pribadi (Alamat & No. HP) hanya boleh
+     dilihat oleh admin (admin/biro SDM/super admin) atau pemilik profil.
+     User pegawai lain melihat data yang disamakan. --}}
+@php($canSeePrivate = $canManage)
+
 @section('content')
 
 <div class="row g-3">
@@ -22,9 +27,11 @@
                 {{ $employee->employmentStatus?->name ?? '-' }}
             </span>
             <p class="small text-muted mb-2">NIP: {{ $employee->nip }}</p>
-            <a href="{{ route('employees.cv', $employee) }}" class="btn btn-sm btn-outline-osdmrb" data-no-loader>
-                <i class="bi bi-file-earmark-person"></i> Unduh CV (PDF)
-            </a>
+            @if ($canManage)
+                <a href="{{ route('employees.cv', $employee) }}" class="btn btn-sm btn-outline-osdmrb" data-no-loader>
+                    <i class="bi bi-file-earmark-person"></i> Unduh CV (PDF)
+                </a>
+            @endif
         </div>
 
         <div class="detail-card mb-3">
@@ -34,11 +41,31 @@
                 <tr><td class="text-muted">Tempat, Tgl Lahir</td><td>{{ $employee->birth_place ?: '-' }}, {{ $employee->birth_date?->translatedFormat('d F Y') ?? '-' }}</td></tr>
                 <tr><td class="text-muted">Usia</td><td>{{ $employee->age ?? '-' }} tahun</td></tr>
                 <tr><td class="text-muted">Agama</td><td>{{ $employee->religion ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Kemampuan Berenang</td><td>{{ $employee->swimming_skill_label }}</td></tr>
+                <tr><td class="text-muted">Kemampuan Renang</td><td>{{ $employee->swimming_skill_label }}</td></tr>
                 <tr><td class="text-muted">Kemampuan Bahasa Inggris</td><td>{{ $employee->english_skill_label }}</td></tr>
                 <tr><td class="text-muted">Email</td><td>{{ $employee->email ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Telepon</td><td>{{ $employee->phone ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Alamat</td><td>{{ $employee->address ?? '-' }}</td></tr>
+                <tr>
+                    <td class="text-muted">Telepon</td>
+                    <td>
+                        @if ($canSeePrivate)
+                            {{ $employee->phone ?? '-' }}
+                        @else
+                            <span class="text-muted fst-italic" title=" disembunyikan ">••••••••</span>
+                            <small class="d-block text-muted" style="font-size:10px">disembunyikan — hanya admin</small>
+                        @endif
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Alamat</td>
+                    <td>
+                        @if ($canSeePrivate)
+                            {{ $employee->address ?? '-' }}
+                        @else
+                            <span class="text-muted fst-italic" title=" disembunyikan ">••••••••••••</span>
+                            <small class="d-block text-muted" style="font-size:10px">disembunyikan — hanya admin</small>
+                        @endif
+                    </td>
+                </tr>
             </table>
         </div>
 
