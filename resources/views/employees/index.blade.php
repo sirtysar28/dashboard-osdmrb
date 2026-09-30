@@ -7,6 +7,7 @@
 
 @php
     $statusFilter = collect($filters['status'] ?? []);
+    $canBulkDelete = auth()->user()->isSuperAdmin();
 @endphp
 
 {{-- info filter aktif dari stat-card dashboard --}}
@@ -118,6 +119,9 @@
         <h5 class="mb-0">Daftar Pegawai ({{ $employees->total() }})</h5>
 
         <div class="d-flex gap-2 flex-wrap">
+            {{-- Hapus massal via ceklis — hanya tampil untuk SUPER ADMIN --}}
+            @include('employees.partials.bulk-delete', ['type' => 'asn'])
+
             <div class="dropdown export-btn">
                 <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
                     <i class="bi bi-download"></i> Export
@@ -150,6 +154,9 @@
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
+                    @if ($canBulkDelete)
+                        <th style="width:36px"><input type="checkbox" class="form-check-input m-0 bulk-select-all" title="Pilih semua"></th>
+                    @endif
                     <th>#</th>
                     <th>Nama</th>
                     <th>NIP</th>
@@ -163,6 +170,9 @@
             <tbody>
                 @forelse ($employees as $employee)
                     <tr>
+                        @if ($canBulkDelete)
+                            <td><input type="checkbox" class="form-check-input m-0 bulk-check" value="{{ $employee->id }}"></td>
+                        @endif
                         <td>{{ $employees->firstItem() + $loop->iteration - 1 }}</td>
                         <td class="fw-semibold">{{ $employee->name }}
                             @unless($employee->is_active)<span class="badge bg-secondary">Non-aktif</span>@endunless
@@ -170,7 +180,7 @@
                         <td>{{ $employee->nip }}</td>
                         <td>{{ $employee->position_name ?? '-' }}</td>
                         <td>{{ $employee->rank?->code ?? '-' }}</td>
-                        <td><span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) ? 'bg-primary' : 'bg-info') }}">{{ $employee->display_status }}</span></td>
+                        <td><span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info') }}">{{ $employee->display_status }}</span></td>
                         <td>{{ $employee->unit?->name ?? '-' }}</td>
                         <td class="text-center text-nowrap">
                             <a href="{{ route('employees.show', $employee) }}" class="btn btn-sm btn-outline-osdmrb" title="Detail"><i class="bi bi-eye"></i></a>
@@ -184,7 +194,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">Tidak ada data pegawai.</td></tr>
+                    <tr><td colspan="{{ $canBulkDelete ? 9 : 8 }}" class="text-center text-muted py-4">Tidak ada data pegawai.</td></tr>
                 @endforelse
             </tbody>
         </table>

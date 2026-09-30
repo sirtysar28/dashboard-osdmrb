@@ -7,6 +7,7 @@
 
 @php($statusFilter = collect($filters['status'] ?? []))
 @php($unitFilter = collect($filters['unit'] ?? []))
+@php($canBulkDelete = auth()->user()->isSuperAdmin())
 
 <div class="filter-card mb-4">
     <form method="GET" class="row g-2 align-items-end">
@@ -47,13 +48,23 @@
 <div class="table-card">
     <div class="card-header-custom">
         <h5 class="mb-0">Daftar Pegawai ({{ $employees->total() }})</h5>
-        <span class="badge bg-light text-dark border"><i class="bi bi-eye"></i> view only</span>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge bg-light text-dark border"><i class="bi bi-eye"></i> view only</span>
+
+            {{-- Hapus massal via ceklis (ASN & Non ASN sekaligus) —
+                 hanya tampil untuk SUPER ADMIN --}}
+            @include('employees.partials.bulk-delete', ['type' => ''])
+        </div>
     </div>
 
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
+                    @if ($canBulkDelete)
+                        <th style="width:36px"><input type="checkbox" class="form-check-input m-0 bulk-select-all" title="Pilih semua"></th>
+                    @endif
                     <th>#</th>
                     <th>Nama</th>
                     <th>NIP</th>
@@ -67,6 +78,9 @@
             <tbody>
                 @forelse ($employees as $employee)
                     <tr>
+                        @if ($canBulkDelete)
+                            <td><input type="checkbox" class="form-check-input m-0 bulk-check" value="{{ $employee->id }}"></td>
+                        @endif
                         <td>{{ $employees->firstItem() + $loop->iteration - 1 }}</td>
                         <td class="fw-semibold">{{ $employee->name }}</td>
                         <td>{{ $employee->nip }}</td>
@@ -76,7 +90,7 @@
                             @if ($employee->employee_type === \App\Models\Employee::TYPE_NON_ASN)
                                 <span class="badge bg-secondary">{{ $employee->category ?? 'Non ASN' }}</span>
                             @else
-                                <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) ? 'bg-primary' : 'bg-info') }}">{{ $employee->display_status }}</span>
+                                <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info') }}">{{ $employee->display_status }}</span>
                             @endif
                         </td>
                         <td>{{ $employee->unit?->name ?? '-' }}</td>
@@ -93,7 +107,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted py-4">Tidak ada pegawai yang cocok dengan pencarian.</td></tr>
+                    <tr><td colspan="{{ $canBulkDelete ? 9 : 8 }}" class="text-center text-muted py-4">Tidak ada pegawai yang cocok dengan pencarian.</td></tr>
                 @endforelse
             </tbody>
         </table>

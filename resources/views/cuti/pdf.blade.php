@@ -8,9 +8,9 @@
         body { font-family: 'Times New Roman', serif; font-size: 11.5pt; color: #000; line-height: 1.5; }
         .kop { border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 4px; }
         .kop table { width: 100%; border-collapse: collapse; }
-        .kop h2 { margin: 0; font-size: 13pt; letter-spacing: .5px; }
-        .kop .unit { margin: 2px 0; font-size: 11pt; font-weight: bold; }
-        .kop p { margin: 2px 0; font-size: 10pt; }
+        .kop h2 { margin: 0; font-size: 14pt; font-weight: bold; letter-spacing: .5px; }
+        .kop .unit { margin: 2px 0; font-size: 14pt; font-weight: bold; }
+        .kop p { margin: 1px 0; font-size: 9pt; }
         .judul { text-align: center; margin: 18px 0 2px; }
         .judul h3 { margin: 0; font-size: 13pt; text-decoration: underline; letter-spacing: 1px; }
         .judul p { margin: 0; font-size: 11pt; }
@@ -28,7 +28,7 @@
 </head>
 <body>
 
-    {{-- ================== KOP ================== --}}
+    {{-- ================== KOP (mengikuti format resmi FORM CUTI KOSONG — ASN) ================== --}}
     <div class="kop">
         <table>
             <tr>
@@ -36,9 +36,10 @@
                     <img src="{{ public_path('images/logo-kementerian.png') }}" style="width:80px;" alt="Logo">
                 </td>
                 <td style="vertical-align:middle; text-align:center;">
-                    <h2>KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA</h2>
-                    <p class="unit">BIRO ORGANISASI, SUMBER DAYA MANUSIA DAN REFORMASI BIROKRASI</p>
-                    <p>Jalan Ir. H. Juanda No. 00, Jakarta 10110 &bull; Telepon (021) 000000 &bull; Surel biro.osdmrb@kemen.go.id</p>
+                    <h2>KEMENTERIAN TRANSMIGRASI RI</h2>
+                    <p class="unit">SEKRETARIAT JENDERAL</p>
+                    <p>Jalan TMP. Kalibata Nomor 17 Jakarta Selatan 12750 Telepon 021 - 7989927, PO BOX 70 JKS PM/KBY</p>
+                    <p>www.kemendesa.go.id</p>
                 </td>
                 <td style="width:90px;"></td>
             </tr>

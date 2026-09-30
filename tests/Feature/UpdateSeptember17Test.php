@@ -341,8 +341,15 @@ class UpdateSeptember17Test extends TestCase
             ->get('/employees?status[]='.$asnId.'&status[]='.$pppkId)
             ->assertOk();
 
-        // jumlah baris hasil filter harus sama dgn query manual (multi status)
-        $expected = Employee::whereIn('employment_status_id', [$asnId, $pppkId])
+        // jumlah baris hasil filter harus sama dgn query manual (multi status).
+        // Aturan status efektif (25 Sept 2026): pegawai berstatus ASN dengan
+        // TMT ASN KOSONG dihitung CPNS — bukan ikut pilihan ASN.
+        $effective = Employee::where(function ($q) use ($asnId, $pppkId) {
+            $q->where(fn ($w) => $w->whereIn('employment_status_id', [$asnId])->whereNotNull('tmt_pns'))
+                ->orWhereIn('employment_status_id', [$pppkId]);
+        });
+
+        $expected = (clone $effective)
             ->where('is_active', true)
             ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
             ->count();
@@ -350,7 +357,7 @@ class UpdateSeptember17Test extends TestCase
         $response->assertSee('Daftar Pegawai ('.$expected.')');
 
         // nama pada halaman pertama tampil semua
-        $firstPage = Employee::whereIn('employment_status_id', [$asnId, $pppkId])
+        $firstPage = (clone $effective)
             ->where('is_active', true)
             ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
             ->orderBy('name')

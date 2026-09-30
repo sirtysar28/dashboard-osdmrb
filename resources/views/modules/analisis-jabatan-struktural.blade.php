@@ -75,7 +75,14 @@
                                 <td><code>{{ $position->code }}</code></td>
                                 <td class="fw-semibold">{{ $position->name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $position->jobLevel?->name ?? '-' }}</span></td>
-                                <td class="text-center">{{ $position->holders_count }}</td>
+                                <td class="text-center">
+                                    {{ $position->holders_count }}
+                                    @if ($position->holders_list)
+                                        <div class="small text-muted" style="max-width: 200px; margin: 2px auto 0;">
+                                            {{ $position->holders_list }}@if ($position->holders_more) <em>+{{ $position->holders_more }} lainnya</em>@endif
+                                        </div>
+                                    @endif
+                                </td>
                                 <td>
                                     @if ($position->holders_count === 0)
                                         <span class="badge bg-danger-subtle text-danger">Kosong</span>
@@ -143,7 +150,7 @@
             <ul class="small text-muted mb-0 ps-3">
                 <li class="mb-2">Formasi struktural kosong menjadi bahan pengisian jabatan melalui sistem merit &amp; manajemen talenta.</li>
                 <li class="mb-2">Kesenjangan beban kerja antar unit eselon II perlu ditinjau pada penyusunan formasi berikutnya.</li>
-                <li>Data pejabat diambil dari kolom eselon pegawai aktif dan riwayat jabatan aktif (Eselon I, II, III, IV).</li>
+                <li>Data pejabat diambil dari kolom eselon &amp; nama jabatan pegawai aktif serta riwayat jabatan aktif (Eselon I, II, III, IV) — tiap jabatan menampilkan pimpinannya.</li>
                 <li>Eselon I: Sekretaris Jenderal, Direktur Jenderal, Inspektur Jenderal; Eselon II: Direktur, Sekretaris Ditjen, Kepala Pusat, Kepala Biro, Inspektur, Sekretaris Itjen, Kepala Balai Besar; Eselon III: Kepala Bagian, Kepala Balai; Eselon IV: Kepala Subbagian.</li>
             </ul>
         </div>

@@ -353,7 +353,7 @@
 {{-- ================= FOOTER BAWAH (mengikuti situs Kementerian Transmigrasi) ================= --}}
 <footer class="app-footer">
     <div class="app-footer-inner">
-        <p class="app-footer-copyright">Copyright &copy; {{ date('Y') }} Kementerian Transmigrasi Republik Indonesia</p>
+        <p class="app-footer-copyright">Copyright &copy; {{ date('Y') }} Kementerian Transmigrasi Republik Indonesia &middot; Dashboard v{{ config('app.version') }}</p>
 
         <div class="app-footer-social">
             <a href="https://www.facebook.com/kementrans.ri" aria-label="Facebook" target="_blank" rel="noopener noreferrer" data-no-loader class="soc-facebook">

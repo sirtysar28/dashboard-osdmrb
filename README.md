@@ -6,6 +6,20 @@ Dibangun dengan **Laravel 11**, **PHP 8.2+**, **MySQL/MariaDB**, **Bootstrap 5**
 
 ---
 
+## 🧭 Riwayat Versi
+
+Format `MAJOR.FEATURE.PATCH` (env `APP_VERSION`, tampil di footer aplikasi):
+
+- **Update besar / fitur baru** → digit ke-2 naik satu tingkat (mis. `1.2.0` → `1.3.0`)
+- **Update kecil / perbaikan** → digit ke-3 naik satu tingkat (mis. `1.2.0` → `1.2.1`)
+
+| Versi | Tanggal | Ringkasan |
+|---|---|---|
+| `1.0.1` | 28 Sep 2026 | Paritas filter ASN↔Direktori, analis jabatan fungsional/struktural mengenali semua jabatan + pemangku, kop form cuti format resmi |
+| `1.0.0` | ≤ 25 Sep 2026 | Baseline — seluruh update hingga 25 September 2026 (chat internal, analisis jabatan, formulir cuti, dedupe unit kerja, dll.) |
+
+---
+
 ## ✨ Fitur
 
 ### 1. Dashboard Kepegawaian (Admin Instansi)
@@ -386,6 +400,86 @@ php artisan config:clear
 php artisan route:clear
 ```
 # dashboard-osdmrb
+
+---
+
+## 🚀 Update 28 September 2026 (v1.0.1)
+
+Sumber: `Update/Catatan Masukan 28 Sept.docx`. Dua poin pertama sudah sesuai (dipertahankan
+tanpa perubahan), empat poin berikut diterapkan:
+
+1. **(Sudah sesuai — tidak diubah)** Pilihan unit kerja pada edit data kepegawaian tidak lagi
+   menampilkan nama unit yang double.
+2. **(Sudah sesuai — tidak diubah)** Pencarian pegawai ASN tidak lagi menampilkan nama unit kerja
+   di luar daftar (nama bagian).
+3. **Hasil pencarian menu ASN & Direktori Pegawai kini SAMA** — direktori pegawai memakai logika
+   *status efektif* yang sama dengan daftar pegawai ASN (`applyEffectiveStatusFilter`): saat
+   difilter **CPNS**, pegawai berstatus ASN dengan TMT ASN kosong ikut tampil di **kedua menu**;
+   filter ASN hanya menampilkan yang TMT ASN-nya terisi.
+4. **Analis Jabatan Fungsional mengidentifikasi SEMUA jabatan dari data pegawai** — tidak lagi
+   terbatas 10 jenis jabatan di master. Nama jabatan (fungsional & struktural) pada data pegawai
+   otomatis dipindahkan ke master `positions` oleh `JabatanSyncService` (idempoten — aman
+   diulang), jenjang `AHLI_UTAMA` ditambahkan, dan pemangku dihitung dari *nama jabatan* pada data
+   pegawai + riwayat jabatan aktif. Nama pemangku (maks. 3 + "…lainnya") tampil di tabel.
+5. **Analis Jabatan Struktural menampilkan pimpinan di tiap jabatan** — status tidak lagi kosong:
+   tiap jabatan (mis. "Kepala Bagian Perencanaan dan Data") menampilkan pemangkunya (badge
+   **Terisi**), pegawai tanpa riwayat jabatan otomatis diberi riwayat jabatan aktif, dan jabatan
+   terisi diurutkan paling atas.
+6. **Kop formulir permohonan cuti mengikuti format resmi** (`FORM CUTI KOSONG — ASN`): alamat
+   *Jalan TMP. Kalibata No. 17* dan situs web **www.kemendesa.go.id** kini baris terpisah
+   (sebelumnya satu baris & tertulis "kemendes"), ukuran huruf kop disesuaikan dokumen resmi.
+
+**Penomoran versi mulai diberlakukan** — lihat [Riwayat Versi](#-riwayat-versi). Update ini
+berupa perbaikan/penyempurnaan (minor) → versi naik dari `1.0.0` ke **`1.0.1`**, ditampilkan di
+footer aplikasi (`config('app.version')`, env `APP_VERSION`).
+
+### Deployment update ini
+```bash
+composer install --no-dev
+php artisan migrate --force   # sinkronisasi master jabatan dari data pegawai
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
+
+Pengujian: `tests/Feature/UpdateSeptember28Test.php`.
+
+Migration: `2026_09_28_000001_sync_jabatan_dari_data_pegawai.php`
+
+---
+
+## 🚀 Update 25 September 2026 (Tindak lanjut perbaikan filter & Non ASN)
+
+1. **Kartu Non ASN kini mengikuti filter (diperbaiki)** — seluruh pegawai **Non ASN dipindahkan ke
+   Sekretariat Jenderal** (migrasi `2026_09_25_000001`), karena unit kerjanya tidak diketahui.
+   Kartu KPI Non ASN berubah ketika filter Eselon I/II/Balai diganti: filter **Sekretariat Jenderal**
+   menampilkan seluruh Non ASN, filter eselon/balai lain menampilkan jumlah yang berbeda (0 bila
+   tidak ada). Non ASN yang `unit_id`-nya NULL tetap dianggap berada di Setjen saat dihitung.
+2. **Import/tambah Non ASN otomatis diberi unit Setjen** — `NonAsnEmployeesImport` & form Non ASN
+   mengisi `unit_id` Sekretariat Jenderal bila tidak dipilih, sehingga data baru langsung terfilter
+   benar. Kolom `employees.gender` dibuat **nullable** (berkas daftar Non ASN tidak memuat jenis
+   kelamin, import gagal pada database mode ketat).
+3. **Status efektif: TMT ASN kosong = CPNS** — pegawai berstatus **ASN dengan TMT ASN masih kosong**
+   kini dihitung **CPNS** secara konsisten: muncul saat filter **CPNS** (dashboard & daftar pegawai),
+   kartu KPI **ASN** hanya menghitung yang TMT ASN terisi, infografis *Status Kepegawaian* menampilkan
+   segmen CPNS, dan profil/CV menampilkan status **CPNS** (`Employee::display_status`). PPPK tidak
+   terpengaruh aturan ini.
+4. **Filter & pencarian Master Data ➜ Unit Kerja** — pencarian **nama/kode unit**, filter **level/eselon**
+   (Kementerian, Eselon I–III, Balai, Lainnya) dan **induk unit**; pagination mempertahankan filter aktif.
+5. **Kop CV satu baris** — judul "KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA" tidak lagi turun ke
+   baris kedua (`white-space: nowrap`, ukuran disesuaikan) sehingga kop lebih ringkas dan isi CV
+   naik ke atas.
+
+Pengujian: `tests/Feature/UpdateSeptember25Test.php`.
+
+### Deployment update ini
+```bash
+composer install --no-dev
+php artisan migrate --force   # Non ASN dipindah ke Setjen + gender nullable
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
 
 ---
 

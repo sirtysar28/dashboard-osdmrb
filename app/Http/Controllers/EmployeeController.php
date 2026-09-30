@@ -53,6 +53,12 @@ class EmployeeController extends Controller
      */
     public function directory(Request $request)
     {
+        // pakai logika filter status efektif yang SAMA dengan daftar pegawai ASN
+        // (catatan 28 Sept 2026: hasil pencarian menu ASN & direktori harus sama,
+        // mis. filter CPNS juga menampilkan pegawai ASN yang TMT ASN-nya kosong)
+        $statusValues = collect($this->normalizeFilters($request)['status'])->filter()->values();
+        $unitValues = collect($this->normalizeFilters($request)['unit'])->filter()->values();
+
         $employees = Employee::query()
             ->with(['unit', 'employmentStatus', 'rank', 'education'])
             ->where('is_active', true)
@@ -66,10 +72,8 @@ class EmployeeController extends Controller
                     $q->where('employee_type', Employee::TYPE_NON_ASN);
                 }
             })
-            ->when(collect($request->input('status', []))->filter()->isNotEmpty(),
-                fn ($q) => $q->whereIn('employment_status_id', collect($request->input('status'))->filter()))
-            ->when(collect($request->input('unit', []))->filter()->isNotEmpty(),
-                fn ($q) => $q->whereIn('unit_id', collect($request->input('unit'))->filter()))
+            ->when($statusValues->isNotEmpty(), fn ($q) => $this->applyEffectiveStatusFilter($q, $statusValues))
+            ->when($unitValues->isNotEmpty(), fn ($q) => $q->whereIn('unit_id', $unitValues->map(fn ($v) => (int) $v)))
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -252,6 +256,13 @@ class EmployeeController extends Controller
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
+
+        // Unit kerja Non ASN tidak diketahui → bawaan Sekretariat Jenderal
+        // supaya jumlah Non ASN per eselon/balai berbeda saat difilter.
+        if (empty($validated['unit_id'])) {
+            $validated['unit_id'] = Unit::where('code', 'SETJEN')->value('id')
+                ?? Unit::where('name', 'like', 'Sekretariat Jenderal%')->value('id');
+        }
 
         return $validated;
     }
@@ -475,6 +486,49 @@ class EmployeeController extends Controller
             ->with('success', 'Data pegawai berhasil dihapus.');
     }
 
+    /**
+     * Hapus massal (bulk) data pegawai lewat ceklis di daftar pegawai
+     * ASN, Non ASN, maupun direktori gabungan — KHUSUS SUPER ADMIN
+     * (route dilindungi middleware role:super_admin; tombol ceklis
+     * hanya ditampilkan untuk super admin).
+     *
+     * Parameter `type` membatasi cakupan sesuai halaman asal:
+     * 'asn' hanya pegawai ASN, 'non_asn' hanya Non ASN,
+     * kosong = semua jenis (dipakai direktori gabungan).
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'type' => ['nullable', 'in:asn,non_asn'],
+        ]);
+
+        $ids = collect($validated['ids'])->filter()->unique()->values();
+
+        $query = Employee::query()->whereIn('id', $ids);
+
+        match ($validated['type'] ?? '') {
+            'asn' => $query->where('employee_type', '!=', Employee::TYPE_NON_ASN),
+            'non_asn' => $query->where('employee_type', Employee::TYPE_NON_ASN),
+            default => null,
+        };
+
+        $employees = $query->get();
+
+        if ($employees->isEmpty()) {
+            return back()->with('error', 'Tidak ada data pegawai yang bisa dihapus.');
+        }
+
+        AuditLog::record(AuditLog::EVENT_DELETE, 'pegawai',
+            'Hapus massal '.$employees->count().' data pegawai: '.$employees->pluck('name')->implode(', '));
+
+        $count = $employees->count();
+        Employee::whereIn('id', $employees->pluck('id'))->delete();
+
+        return back()->with('success', $count.' data pegawai berhasil dihapus.');
+    }
+
     /* ================= EXPORT ================= */
 
     /**
@@ -620,6 +674,59 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Terapkan aturan STATUS EFEKTIF pada query (dipakai daftar pegawai ASN,
+     * export, DAN direktori pegawai agar hasilnya sama — catatan 28 Sept 2026):
+     * pegawai berstatus ASN dengan TMT ASN KOSONG dihitung CPNS
+     * (catatan rapat 25 Sept 2026); filter ASN hanya yang TMT terisi.
+     */
+    private function applyEffectiveStatusFilter($query, $statusValues)
+    {
+        $statusValues = collect($statusValues)->filter()->values();
+
+        $statusIds = $statusValues->filter(fn ($v) => ctype_digit((string) $v))->map(fn ($v) => (int) $v);
+        $wantsPppk = $statusValues->contains('pppk');
+        $asnIds = EmploymentStatus::asnIds();
+        $cpnsIds = EmploymentStatus::cpnsIds();
+
+        return $query->where(function ($w) use ($statusIds, $wantsPppk, $asnIds, $cpnsIds) {
+            // status selain ASN/CPNS (mis. PPPK Penuh/Paruh Waktu)
+            $plain = $statusIds->filter(fn ($id) => ! in_array($id, array_merge($asnIds, $cpnsIds), true))->values();
+            if ($plain->isNotEmpty()) {
+                $w->whereIn('employment_status_id', $plain);
+            }
+
+            // CPNS terpilih → status CPNS ATAU ASN yang TMT ASN-nya kosong
+            if ($statusIds->contains(fn ($id) => in_array($id, $cpnsIds, true))) {
+                $w->orWhere(function ($c) use ($cpnsIds, $asnIds) {
+                    if (! empty($cpnsIds)) {
+                        $c->whereIn('employment_status_id', $cpnsIds);
+                    }
+
+                    if (! empty($asnIds)) {
+                        $c->orWhere(fn ($a) => $a
+                            ->whereIn('employment_status_id', $asnIds)
+                            ->whereNull('tmt_pns'));
+                    }
+                });
+            }
+
+            // ASN terpilih → hanya yang TMT ASN-nya sudah terisi
+            if ($statusIds->contains(fn ($id) => in_array($id, $asnIds, true)) && ! empty($asnIds)) {
+                $w->orWhere(fn ($a) => $a
+                    ->whereIn('employment_status_id', $asnIds)
+                    ->whereNotNull('tmt_pns'));
+            }
+
+            if ($wantsPppk) {
+                $pppk = fn ($e) => $e->where('name', 'like', 'PPPK%');
+                $plain->isNotEmpty() || $statusIds->intersect($asnIds)->isNotEmpty() || $statusIds->intersect($cpnsIds)->isNotEmpty()
+                    ? $w->orWhereHas('employmentStatus', $pppk)
+                    : $w->whereHas('employmentStatus', $pppk);
+            }
+        });
+    }
+
+    /**
      * Query pegawai dengan filter pencarian/status (bisa >1)/unit (bisa >1)/aktif
      * (dipakai index, export & tautan stat-card dashboard)
      * + filter stat-card dashboard (jenis jabatan, pensiun, kenaikan jabatan, KGB).
@@ -635,24 +742,9 @@ class EmployeeController extends Controller
             ->when($request->search, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%{$v}%")
                 ->orWhere('nip', 'like', "%{$v}%")))
-            // status kepegawaian — MULTI-SELECT (mis. ASN + PPPK sekaligus)
-            ->when($statusValues->isNotEmpty(), function ($q) use ($statusValues) {
-                $statusIds = $statusValues->filter(fn ($v) => ctype_digit((string) $v))->map(fn ($v) => (int) $v);
-                $wantsPppk = $statusValues->contains('pppk');
-
-                $q->where(function ($w) use ($statusIds, $wantsPppk) {
-                    if ($statusIds->isNotEmpty()) {
-                        $w->whereIn('employment_status_id', $statusIds);
-                    }
-
-                    if ($wantsPppk) {
-                        $pppk = fn ($e) => $e->where('name', 'like', 'PPPK%');
-                        $statusIds->isNotEmpty()
-                            ? $w->orWhereHas('employmentStatus', $pppk)
-                            : $w->whereHas('employmentStatus', $pppk);
-                    }
-                });
-            })
+            // status kepegawaian — MULTI-SELECT (mis. ASN + PPPK sekaligus) dgn
+            // aturan status efektif (dipakai bersama direktori pegawai)
+            ->when($statusValues->isNotEmpty(), fn ($q) => $this->applyEffectiveStatusFilter($q, $statusValues))
             // unit kerja — MULTI-SELECT
             ->when($unitValues->isNotEmpty(), fn ($q) => $q->whereIn('unit_id', $unitValues->map(fn ($v) => (int) $v)))
             ->when($request->jenis === 'struktural', fn ($q) => $q->whereNotNull('eselon'))

@@ -20,8 +20,21 @@ use Illuminate\Validation\Rule;
  */
 class MasterDataController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        /* Filter pencarian di SEMUA tab — kata kunci & pilihan terkait
+           (setiap tab memakai prefiks parameter sendiri, mis. unit_q,
+           edu_q, campus_q, ...) agar tidak saling timpa antar tab. */
+        $unitFilters = $request->only(['unit_q', 'unit_level', 'unit_parent']);
+        $eduFilters = $request->only(['edu_q']);
+        $campusFilters = $request->only(['campus_q', 'campus_type']);
+        $rankFilters = $request->only(['rank_q', 'rank_type']);
+        $statusFilters = $request->only(['status_q']);
+        $jobLevelFilters = $request->only(['joblevel_q']);
+        $positionTypeFilters = $request->only(['postype_q']);
+        $positionFilters = $request->only(['pos_q', 'pos_type', 'pos_level']);
+        $arsipFilters = $request->only(['arsip_q']);
+
         /* Koleksi LENGKAP (tanpa pagination) untuk kebutuhan dropdown
            & pilihan form di seluruh tab. */
         $allUnits = Unit::orderBy('level')->orderBy('name')->get();
@@ -34,27 +47,91 @@ class MasterDataController extends Controller
             'allUnits' => $allUnits,
             'allPositionTypes' => $allPositionTypes,
             'allJobLevels' => $allJobLevels,
+            'unitFilters' => $unitFilters,
+            'eduFilters' => $eduFilters,
+            'campusFilters' => $campusFilters,
+            'rankFilters' => $rankFilters,
+            'statusFilters' => $statusFilters,
+            'jobLevelFilters' => $jobLevelFilters,
+            'positionTypeFilters' => $positionTypeFilters,
+            'positionFilters' => $positionFilters,
+            'arsipFilters' => $arsipFilters,
 
             'units' => Unit::with('parent', 'children')
+                ->when(trim((string) ($unitFilters['unit_q'] ?? '')) !== '', function ($q) use ($unitFilters) {
+                    $v = trim((string) $unitFilters['unit_q']);
+                    $q->where(fn ($w) => $w
+                        ->where('name', 'like', "%{$v}%")
+                        ->orWhere('code', 'like', "%{$v}%"));
+                })
+                ->when(! empty($unitFilters['unit_level']), fn ($q) => $q->where('level', $unitFilters['unit_level']))
+                ->when(! empty($unitFilters['unit_parent']), fn ($q) => $q->where('parent_id', (int) $unitFilters['unit_parent']))
                 ->orderBy('level')->orderBy('name')
-                ->paginate(10, ['*'], 'pageUnits'),
-            'educationLevels' => EducationLevel::orderBy('sort_order')
-                ->paginate(10, ['*'], 'pageEdu'),
-            'campuses' => Campus::orderBy('sort_order')->orderBy('name')
-                ->paginate(10, ['*'], 'pageCampus'),
-            'ranks' => Rank::orderBy('sort_order')
-                ->paginate(10, ['*'], 'pageRank'),
-            'employmentStatuses' => EmploymentStatus::orderBy('name')
-                ->paginate(10, ['*'], 'pageStatus'),
-            'jobLevels' => JobLevel::orderBy('sort_order')
-                ->paginate(10, ['*'], 'pageJobLevel'),
-            'positionTypes' => PositionType::orderBy('name')
-                ->paginate(10, ['*'], 'pagePosType'),
-            'positions' => Position::with(['positionType', 'jobLevel'])->orderBy('name')
-                ->paginate(10, ['*'], 'pagePos'),
-            'archiveCategories' => ArchiveCategory::withCount('archives')->orderBy('code')
-                ->paginate(10, ['*'], 'pageArsip'),
+                ->paginate(10, ['*'], 'pageUnits')
+                ->appends(['tab' => 'units'] + $unitFilters),
+            'educationLevels' => EducationLevel::query()
+                ->when(trim((string) ($eduFilters['edu_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $eduFilters['edu_q'], ['code', 'name']))
+                ->orderBy('sort_order')
+                ->paginate(10, ['*'], 'pageEdu')
+                ->appends(['tab' => 'education'] + $eduFilters),
+            'campuses' => Campus::query()
+                ->when(trim((string) ($campusFilters['campus_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $campusFilters['campus_q'], ['name', 'city']))
+                ->when(! empty($campusFilters['campus_type']), fn ($q) => $q->where('type', $campusFilters['campus_type']))
+                ->orderBy('sort_order')->orderBy('name')
+                ->paginate(10, ['*'], 'pageCampus')
+                ->appends(['tab' => 'campuses'] + $campusFilters),
+            'ranks' => Rank::query()
+                ->when(trim((string) ($rankFilters['rank_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $rankFilters['rank_q'], ['code', 'name', 'group_name']))
+                ->when(! empty($rankFilters['rank_type']), fn ($q) => $q->where('is_pppk', $rankFilters['rank_type'] === 'pppk'))
+                ->orderBy('sort_order')
+                ->paginate(10, ['*'], 'pageRank')
+                ->appends(['tab' => 'ranks'] + $rankFilters),
+            'employmentStatuses' => EmploymentStatus::query()
+                ->when(trim((string) ($statusFilters['status_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $statusFilters['status_q'], ['code', 'name']))
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'pageStatus')
+                ->appends(['tab' => 'statuses'] + $statusFilters),
+            'jobLevels' => JobLevel::query()
+                ->when(trim((string) ($jobLevelFilters['joblevel_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $jobLevelFilters['joblevel_q'], ['code', 'name']))
+                ->orderBy('sort_order')
+                ->paginate(10, ['*'], 'pageJobLevel')
+                ->appends(['tab' => 'joblevels'] + $jobLevelFilters),
+            'positionTypes' => PositionType::query()
+                ->when(trim((string) ($positionTypeFilters['postype_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $positionTypeFilters['postype_q'], ['code', 'name']))
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'pagePosType')
+                ->appends(['tab' => 'positiontypes'] + $positionTypeFilters),
+            'positions' => Position::with(['positionType', 'jobLevel'])
+                ->when(trim((string) ($positionFilters['pos_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $positionFilters['pos_q'], ['code', 'name']))
+                ->when(! empty($positionFilters['pos_type']), fn ($q) => $q->where('position_type_id', (int) $positionFilters['pos_type']))
+                ->when(! empty($positionFilters['pos_level']), fn ($q) => $q->where('job_level_id', (int) $positionFilters['pos_level']))
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'pagePos')
+                ->appends(['tab' => 'positions'] + $positionFilters),
+            'archiveCategories' => ArchiveCategory::withCount('archives')
+                ->when(trim((string) ($arsipFilters['arsip_q'] ?? '')) !== '', fn ($q) => $this->keywordWhere($q, $arsipFilters['arsip_q'], ['code', 'name']))
+                ->orderBy('code')
+                ->paginate(10, ['*'], 'pageArsip')
+                ->appends(['tab' => 'arsip'] + $arsipFilters),
         ]);
+    }
+
+    /**
+     * Terapkan pencarian kata kunci LIKE pada beberapa kolom sekaligus.
+     */
+    private function keywordWhere($query, string $keyword, array $columns)
+    {
+        $v = trim($keyword);
+
+        if ($v === '') {
+            return $query;
+        }
+
+        return $query->where(function ($w) use ($v, $columns) {
+            foreach ($columns as $column) {
+                $w->orWhere($column, 'like', "%{$v}%");
+            }
+        });
     }
 
     /**

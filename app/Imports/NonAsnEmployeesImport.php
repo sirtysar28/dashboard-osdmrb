@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\Unit;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -57,6 +58,12 @@ class NonAsnEmployeesImport
         if (! $headers || $headers['nama'] === null) {
             throw new \RuntimeException('Kolom NAMA tidak ditemukan pada berkas. Pastikan berkas berisi daftar nama pegawai non ASN (header "NAMA").');
         }
+
+        // Unit kerja Non ASN tidak diketahui → Sekretariat Jenderal
+        // (catatan rapat 23-25 Sept 2026: jumlah Non ASN per eselon/balai
+        // berbeda-beda ketika dashboard difilter).
+        $setjenId = Unit::where('code', 'SETJEN')->value('id')
+            ?? Unit::where('name', 'like', 'Sekretariat Jenderal%')->value('id');
 
         foreach ($rows as $rowNumber => $row) {
             if ($rowNumber <= $headers['row']) {
@@ -118,9 +125,18 @@ class NonAsnEmployeesImport
                     continue;
                 }
 
+                // isi unit Sekretariat Jenderal bila belum punya unit kerja
+                if (! $employee->unit_id && $setjenId) {
+                    $data['unit_id'] = $setjenId;
+                }
+
                 $employee->update($nip !== null ? $data + ['nip' => $nip] : $data);
                 $this->updated++;
             } else {
+                if ($setjenId) {
+                    $data['unit_id'] = $setjenId;
+                }
+
                 Employee::create($data + ['nip' => $nip ?? self::generateCode($this->category, $name)]);
                 $this->created++;
             }

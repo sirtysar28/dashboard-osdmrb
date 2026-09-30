@@ -52,6 +52,7 @@ Route::middleware('auth')->group(function () {
     /* ================= BERSAMA ================= */
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // ganti password mandiri: PUT /password (password.update) sudah terdaftar di routes/auth.php
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     /* ================= USER PEGAWAI ================= */
@@ -181,6 +182,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/employees/non-asn/{employee}/edit', [EmployeeController::class, 'nonAsnEdit'])->name('employees.non-asn.edit');
         Route::put('/employees/non-asn/{employee}', [EmployeeController::class, 'nonAsnUpdate'])->name('employees.non-asn.update');
 
+        // Hapus massal data pegawai (ceklist) — KHUSUS SUPER ADMIN;
+        // didaftarkan sebelum route /employees/{employee} agar tidak
+        // tertangkap sebagai parameter {employee}.
+        Route::delete('/employees/bulk-destroy', [EmployeeController::class, 'bulkDestroy'])
+            ->middleware('role:super_admin')
+            ->name('employees.bulk-destroy');
+
         Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
         Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
@@ -272,6 +280,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/pengguna/export', [UserController::class, 'export'])->name('users.export');
         Route::post('/pengguna', [UserController::class, 'store'])->name('users.store');
         Route::put('/pengguna/{user}', [UserController::class, 'update'])->name('users.update');
+        // Admin Bagian hanya boleh reset password akun berperan Pegawai
+        Route::put('/pengguna/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::delete('/pengguna/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 });

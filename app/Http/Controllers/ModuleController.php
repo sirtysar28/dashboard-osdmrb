@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\EmployeePosition;
 use App\Models\EmployeeTraining;
 use App\Models\JobLevel;
 use App\Models\Position;
 use App\Models\Sop;
 use App\Models\Unit;
+use App\Services\JabatanSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -31,12 +33,13 @@ class ModuleController extends Controller
        ========================================================= */
     public function analisisJabatan(): View
     {
-        // Jabatan fungsional tertentu + jumlah pemangku jabatan aktif
-        $positions = Position::whereHas('positionType', fn ($q) => $q->where('code', 'FUNGSIONAL'))
-            ->with(['jobLevel', 'positionType'])
-            ->withCount(['employeePositions as holders_count' => fn ($q) => $q->where('is_current', true)])
-            ->orderBy('code')
-            ->get();
+        // sinkronkan nama jabatan dari data pegawai agar SEMUA jenis
+        // jabatan fungsional teridentifikasi (catatan 28 Sept 2026)
+        $this->syncJabatan();
+
+        // Jabatan fungsional tertentu + pemangku dihitung dari NAMA JABATAN
+        // pada data pegawai aktif (bukan hanya relasi riwayat jabatan).
+        $positions = $this->buildPositionAnalysis('FUNGSIONAL');
 
         // Distribusi pemangku per jenjang fungsional (dari data pegawai ASN aktif)
         $jenjang = Employee::query()
@@ -62,12 +65,10 @@ class ModuleController extends Controller
        ========================================================= */
     public function analisisJabatanStruktural(): View
     {
-        // Jabatan struktural (Eselon I–IV) + jumlah pemangku aktif
-        $positions = Position::whereHas('positionType', fn ($q) => $q->where('code', 'STRUKTURAL'))
-            ->with(['jobLevel', 'positionType'])
-            ->withCount(['employeePositions as holders_count' => fn ($q) => $q->where('is_current', true)])
-            ->orderBy('code')
-            ->get();
+        // sinkronkan agar tiap jabatan struktural menampilkan pimpinannya
+        $this->syncJabatan();
+
+        $positions = $this->buildPositionAnalysis('STRUKTURAL');
 
         // Distribusi pejabat struktural per eselon (dari data pegawai ASN aktif)
         $eselonDist = Employee::query()
@@ -110,6 +111,115 @@ class ModuleController extends Controller
         return view('modules.analisis-jabatan-struktural', compact(
             'positions', 'eselonDist', 'perUnit', 'totalPejabat', 'totalJabatan', 'totalPemangku', 'jabatanKosong'
         ));
+    }
+
+    /* =========================================================
+       HELPER ANALISIS JABATAN (28 Sept 2026)
+       ========================================================= */
+
+    /** Jalankan sinkronisasi master jabatan dari data pegawai (idempoten). */
+    private function syncJabatan(): void
+    {
+        try {
+            JabatanSyncService::syncFromEmployees();
+        } catch (\Throwable) {
+            // analisis tetap ditampilkan walau sinkronisasi bermasalah
+        }
+    }
+
+    /**
+     * Bangun daftar jabatan (master + data pegawai) beserta pemangkunya.
+     *
+     * Pemangku dihitung dari NAMA JABATAN pada data pegawai aktif — bukan hanya
+     * dari relasi riwayat jabatan — sehingga semua jenis jabatan yang sudah
+     * masuk di data pegawai teridentifikasi dan tiap jabatan struktural
+     * menampilkan pimpinannya (catatan 28 Sept 2026).
+     *
+     * @return \Illuminate\Support\Collection<int, Position>
+     */
+    private function buildPositionAnalysis(string $typeCode)
+    {
+        $master = Position::whereHas('positionType', fn ($q) => $q->where('code', $typeCode))
+            ->with('jobLevel')
+            ->get();
+
+        // pegawai ASN aktif sesuai jenis jabatan yang dianalisis
+        $employees = Employee::query()
+            ->where('is_active', true)
+            ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
+            ->whereNotNull('position_name')
+            ->where('position_name', '!=', '')
+            ->get(['id', 'name', 'position_name', 'eselon', 'functional_level'])
+            ->filter(function (Employee $e) use ($typeCode) {
+                $struktural = JabatanSyncService::romanEselon($e->eselon) !== null;
+
+                return $typeCode === 'STRUKTURAL'
+                    ? $struktural
+                    : (! $struktural && JabatanSyncService::looksFungsional($e->position_name, $e->functional_level));
+            });
+
+        // kelompokkan berdasarkan nama jabatan (normal: upper + spasi rapat)
+        $groups = $employees->groupBy(fn ($e) => JabatanSyncService::normalize($e->position_name));
+
+        // pemangku lewat riwayat jabatan aktif yang tidak tertangkap nama jabatan
+        $linked = EmployeePosition::query()
+            ->where('is_current', true)
+            ->whereHas('employee', fn ($q) => $q->where('is_active', true)
+                ->where('employee_type', '!=', Employee::TYPE_NON_ASN))
+            ->whereHas('position', fn ($q) => $q->whereHas('positionType', fn ($t) => $t->where('code', $typeCode)))
+            ->with(['employee:id,name', 'position:id,name'])
+            ->get();
+
+        $attachHolders = function (Position $position) use ($groups, $linked) {
+            $key = JabatanSyncService::normalize($position->name);
+
+            $names = $groups->get($key)?->pluck('name') ?? collect();
+
+            $extra = $linked
+                ->filter(fn ($lp) => JabatanSyncService::normalize($lp->position?->name) === $key
+                    && ! $names->contains($lp->employee?->name))
+                ->map(fn ($lp) => $lp->employee?->name)
+                ->filter();
+
+            $holders = $names->merge($extra)->unique()->values();
+
+            $position->holders_count = $holders->count();
+            $position->holders_list = $holders->take(3)->implode(', ');
+            $position->holders_more = max(0, $holders->count() - 3);
+
+            return $position;
+        };
+
+        $positions = $master->map($attachHolders);
+
+        // jabatan pada data pegawai yang belum ada di master (cadangan bila
+        // sinkronisasi belum berjalan) — dibuat sebagai model tanpa disimpan
+        $masterKeys = $master->mapWithKeys(fn ($p) => [JabatanSyncService::normalize($p->name) => true]);
+
+        foreach ($groups->keys()->diff($masterKeys->keys()) as $key) {
+            $sample = $groups->get($key)->first();
+
+            $position = new Position([
+                'code' => 'DATA',
+                'name' => trim((string) $sample->position_name),
+            ]);
+
+            $level = JobLevel::where(
+                'code',
+                JabatanSyncService::jobLevelCode($sample->eselon, $sample->functional_level, $sample->position_name)
+            )->first();
+
+            $position->job_level_id = $level?->id;
+            $position->setRelation('jobLevel', $level);
+
+            $positions->push($attachHolders($position));
+        }
+
+        // jabatan terisi di atas, kosong di bawah — masing-masing urut nama
+        return $positions->sortBy([
+            ['holders_count', 'desc'],
+            ['name', 'asc'],
+        ])->values();
     }
 
     /* =========================================================

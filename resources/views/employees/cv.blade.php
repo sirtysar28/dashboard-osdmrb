@@ -6,9 +6,12 @@
     <style>
         @page { margin: 1.6cm 1.8cm; }
         body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #1a1a1a; line-height: 1.55; }
-        .kop { border-bottom: 3px solid #163d4f; padding-bottom: 10px; margin-bottom: 16px; }
-        .kop h1 { margin: 6px 0 0; font-size: 19px; color: #163d4f; letter-spacing: .5px; }
-        .judul { text-align: center; margin: 4px 0 16px; }
+        /* judul kementerian SATU BARIS (catatan 25 Sept 2026) — ukuran
+           disesuaikan agar tidak turun ke baris kedua & kop lebih ringkas */
+        .kop { border-bottom: 3px solid #163d4f; padding-bottom: 8px; margin-bottom: 12px; }
+        .kop h1 { margin: 3px 0 0; font-size: 15.5px; color: #163d4f; letter-spacing: 1px; white-space: nowrap; }
+        .kop .logo-kop { display: block; margin: 0 auto 2px; }
+        .judul { text-align: center; margin: 2px 0 14px; }
         .judul h2 { margin: 0; font-size: 15px; letter-spacing: 3px; text-decoration: underline; }
         table.cv { width: 100%; border-collapse: collapse; }
         table.cv td { padding: 2.5px 4px; vertical-align: top; font-size: 11px; }
@@ -30,16 +33,17 @@
 
     {{-- ================== KOP ================== --}}
     {{-- Catatan rapat 23 Sept 2026: judul "Transmigrasi" (bukan Transigrasi),
-         subjudul Biro OSDMRB dihilangkan, ditambah logo Kementerian --}}
+         subjudul Biro OSDMRB dihilangkan, ditambah logo Kementerian.
+         Catatan 25 Sept 2026: judul satu baris agar kop lebih ringkas. --}}
     <div class="kop">
         <table style="width:100%">
             <tr>
-                <td style="width:70px"></td>
+                <td style="width:46px"></td>
                 <td style="text-align:center">
-                    <img src="{{ public_path('images/logo-kementerian.png') }}" style="width:62px;" alt="Logo Kementerian Transmigrasi">
+                    <img src="{{ public_path('images/logo-kementerian.png') }}" class="logo-kop" style="width:56px;" alt="Logo Kementerian Transmigrasi">
                     <h1>KEMENTERIAN TRANSMIGRASI REPUBLIK INDONESIA</h1>
                 </td>
-                <td style="width:70px"></td>
+                <td style="width:46px"></td>
             </tr>
         </table>
     </div>
@@ -57,7 +61,7 @@
                     <tr><td class="nama" colspan="2">{{ $employee->name }}</td></tr>
                     <tr><td class="jabatan" colspan="2">{{ $employee->position_name ?? '-' }}</td></tr>
                     <tr><td class="label">NIP / ID Pegawai</td><td>: {{ $employee->nip }}</td></tr>
-                    <tr><td class="label">Status Kepegawaian</td><td>: {{ $employee->employmentStatus?->name ?? '-' }}</td></tr>
+                    <tr><td class="label">Status Kepegawaian</td><td>: {{ $employee->display_status }}</td></tr>
                     <tr><td class="label">Golongan / Pangkat</td><td>: {{ ($employee->rank?->code ?? '-') . ($employee->rank?->name ? ' — ' . $employee->rank->name : '') }}</td></tr>
                     <tr><td class="label">Unit Kerja</td><td>: {{ $employee->unit?->name ?? '-' }}</td></tr>
                 </table>

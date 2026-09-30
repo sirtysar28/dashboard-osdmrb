@@ -75,7 +75,14 @@
                                 <td><code>{{ $position->code }}</code></td>
                                 <td class="fw-semibold">{{ $position->name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $position->jobLevel?->name ?? '-' }}</span></td>
-                                <td class="text-center">{{ $position->holders_count }}</td>
+                                <td class="text-center">
+                                    {{ $position->holders_count }}
+                                    @if ($position->holders_list)
+                                        <div class="small text-muted" style="max-width: 200px; margin: 2px auto 0;">
+                                            {{ $position->holders_list }}@if ($position->holders_more) <em>+{{ $position->holders_more }} lainnya</em>@endif
+                                        </div>
+                                    @endif
+                                </td>
                                 <td>
                                     @if ($position->holders_count === 0)
                                         <span class="badge bg-danger-subtle text-danger">Kosong</span>
@@ -102,10 +109,20 @@
                 @php
                     $max = $jenjang->max('total') ?: 1;
                     $pct = (int) round($row->total / $max * 100);
+                    
+                    $labelMap = [
+                        'pertama'  => 'Fungsional Ahli Pertama',
+                        'muda'     => 'Fungsional Ahli Muda',
+                        'madya'    => 'Fungsional Ahli Madya',
+                        'penyelia' => 'Fungsional Penyelia',
+                        'terampil' => 'Fungsional Terampil',
+                    ];
+
+                    $displayLabel = $labelMap[strtolower(trim($row->label))] ?? $row->label;
                 @endphp
                 <div class="mb-3">
                     <div class="d-flex justify-content-between small mb-1">
-                        <span class="fw-semibold">{{ $row->label }}</span>
+                        <span class="fw-semibold">{{ $displayLabel }}</span>
                         <span class="text-muted">{{ $row->total }} pegawai</span>
                     </div>
                     <div class="progress" style="height: 10px;">
@@ -138,7 +155,7 @@
         <div class="col-lg-4">
             <div class="d-flex gap-2 h-100">
                 <i class="bi bi-clock-history fs-5" style="color: var(--osdmrb-primary);"></i>
-                <p class="small text-muted mb-0">Data pemangku diambil dari riwayat jabatan aktif pegawai.</p>
+                <p class="small text-muted mb-0">Pemangku diidentifikasi dari <em>nama jabatan</em> pada data pegawai aktif dan riwayat jabatan aktif — seluruh jenis jabatan fungsional di data pegawai otomatis dikenali.</p>
             </div>
         </div>
     </div>

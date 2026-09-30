@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | Penomoran versi dashboard: MAJOR.FEATURE.PATCH — digit ke-2 naik satu
+    | tingkat untuk pembaruan besar/fitur baru (mis. 1.2.0), digit ke-3 untuk
+    | pembaruan kecil/perbaikan (mis. 1.2.1).
+    |
+    */
+
+    'version' => env('APP_VERSION', '1.0.1'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

@@ -23,8 +23,8 @@
             </div>
             <h5 class="mb-1 fw-bold">{{ $employee->name }}</h5>
             <p class="text-muted small mb-2">{{ $employee->position_name ?? '-' }}</p>
-            <span class="badge {{ in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) ? 'bg-primary' : 'bg-info' }} mb-2">
-                {{ $employee->employmentStatus?->name ?? '-' }}
+            <span class="badge {{ in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info' }} mb-2">
+                {{ $employee->display_status }}
             </span>
             <p class="small text-muted mb-2">NIP: {{ $employee->nip }}</p>
             @if ($canManage)

@@ -221,10 +221,11 @@ class MasterDataSeeder extends Seeder
             ['AHLI_PERTAMA', 'Fungsional Ahli Pertama', 5],
             ['AHLI_MUDA', 'Fungsional Ahli Muda', 6],
             ['AHLI_MADYA', 'Fungsional Ahli Madya', 7],
-            ['PENYELIA', 'Fungsional Penyelia', 8],
-            ['TERAMPIL', 'Fungsional Terampil', 9],
+            ['AHLI_UTAMA', 'Fungsional Ahli Utama', 8],
+            ['PENYELIA', 'Fungsional Penyelia', 9],
+            ['TERAMPIL', 'Fungsional Terampil', 10],
             // pelaksana: non-eselon & non-fungsional
-            ['PELAKSANA', 'Pelaksana (Non-Eselon & Non-Fungsional)', 10],
+            ['PELAKSANA', 'Pelaksana (Non-Eselon & Non-Fungsional)', 11],
         ];
 
         foreach ($jobLevels as [$code, $name, $order]) {

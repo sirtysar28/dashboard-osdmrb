@@ -80,7 +80,8 @@
                     <div class="col-md-5">
                         <label class="form-label">Unit Kerja Penempatan</label>
                         <select name="unit_id" class="form-select">
-                            <option value="">-</option>
+                            {{-- kosong = otomatis Sekretariat Jenderal (unit Non ASN tidak diketahui) --}}
+                            <option value="">Sekretariat Jenderal (bawaan)</option>
                             @foreach ($unitList as $unit)
                                 <option value="{{ $unit->id }}"
                                         {{ (string) old('unit_id', $employee->unit_id) === (string) $unit->id ? 'selected' : '' }}>

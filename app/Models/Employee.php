@@ -155,6 +155,27 @@ class Employee extends Model
         return $this->is_asn ? 'ASN' : 'Non ASN';
     }
 
+    /**
+     * Pegawai berstatus ASN (PNS) namun TMT ASN-nya MASIH KOSONG dihitung
+     * CPNS (status efektif) — catatan rapat 25 Sept 2026: ketika difilter
+     * CPNS, data pegawai tersebut harus tampil.
+     */
+    public function getIsEffectiveCpnsAttribute(): bool
+    {
+        if ($this->tmt_pns !== null) {
+            return false;
+        }
+
+        if ($this->relationLoaded('employmentStatus') && $this->employmentStatus) {
+            $status = $this->employmentStatus;
+
+            return in_array(strtoupper(trim($status->code)), ['ASN', 'PNS'], true)
+                || in_array(strtolower(trim($status->name)), ['asn', 'pns'], true);
+        }
+
+        return in_array((int) $this->employment_status_id, EmploymentStatus::asnIds(), true);
+    }
+
     /* ================= BUP (Batas Usia Pensiun) ================= */
 
     /**
@@ -216,12 +237,17 @@ class Employee extends Model
 
     /**
      * Status kepegawaian tampilan — otomatis "Pensiun" saat BUP terlewati,
-     * selain itu mengikuti master status kepegawaian (ASN/CPNS/PPPK/dll).
+     * "CPNS" bila TMT ASN masih kosong (status efektif), selain itu mengikuti
+     * master status kepegawaian (ASN/CPNS/PPPK/dll).
      */
     public function getDisplayStatusAttribute(): string
     {
         if ($this->is_retired) {
             return 'Pensiun';
+        }
+
+        if ($this->is_effective_cpns) {
+            return 'CPNS';
         }
 
         return $this->employmentStatus?->name ?? '-';

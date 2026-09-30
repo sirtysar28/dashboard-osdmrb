@@ -14,6 +14,19 @@ class UserController extends Controller
 {
     use ExportsTable;
 
+    /**
+     * Aturan reset password:
+     * - Administrator Utama (super_admin) boleh me-reset password semua akun.
+     * - Admin Bagian (admin) HANYA boleh me-reset password akun berperan Pegawai.
+     */
+    private function canResetPasswordOf(User $target): bool
+    {
+        $actor = auth()->user();
+
+        return $actor->isSuperAdmin()
+            || ($actor->isAdmin() && $target->hasRole('pegawai'));
+    }
+
     public function index(Request $request)
     {
         $users = User::with(['roles', 'employee'])
@@ -99,6 +112,11 @@ class UserController extends Controller
             'is_active' => ['boolean'],
         ]);
 
+        // Admin Bagian hanya boleh mengubah password akun berperan Pegawai
+        if (!empty($validated['password']) && !$this->canResetPasswordOf($user)) {
+            return back()->with('error', 'Admin Bagian hanya dapat membantu reset password akun Pegawai.');
+        }
+
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -111,6 +129,51 @@ class UserController extends Controller
         $user->syncRoles([$validated['role']]);
 
         return back()->with('success', 'Akun pengguna berhasil diperbarui.');
+    }
+
+    /**
+     * Bantu reset password akun pegawai (oleh Admin Bagian / Administrator Utama).
+     */
+    public function resetPassword(Request $request, User $user)
+    {
+        abort_if($user->id === auth()->id(), 422, 'Gunakan halaman Profil untuk mengubah password Anda sendiri.');
+
+        if (!$this->canResetPasswordOf($user)) {
+            return back()->with('error', 'Admin Bagian hanya dapat membantu reset password akun Pegawai.');
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', Password::defaults(), 'confirmed'],
+        ]);
+
+        $user->update([
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        \App\Models\AuditLog::record(
+            \App\Models\AuditLog::EVENT_PASSWORD,
+            'users',
+            'Reset password akun '.$user->name.' oleh '.auth()->user()->name
+        );
+
+        // notifikasi email ke pemilik akun bahwa passwordnya direset admin
+        \App\Services\Notifier::send(
+            to: $user->email,
+            type: 'password',
+            title: 'Password Akun Anda Direset oleh Admin',
+            greeting: 'Halo '.$user->name,
+            lines: [
+                'Password akun Dashboard Biro OSDMRB Anda baru saja direset oleh '.auth()->user()->name.' ('.auth()->user()->role_label.').',
+                'Silakan login menggunakan password baru tersebut, kemudian segera ganti password Anda melalui menu Profil.',
+            ],
+            fields: [
+                'Waktu' => now()->setTimezone(config('app.timezone'))->format('d F Y H:i'),
+            ],
+            actionUrl: route('login'),
+            actionText: 'Login',
+        );
+
+        return back()->with('success', "Password akun {$user->name} berhasil direset.");
     }
 
     public function destroy(User $user)

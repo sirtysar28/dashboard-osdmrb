@@ -76,6 +76,7 @@
                     </thead>
                     <tbody>
                         @foreach ($users as $user)
+                            @php($canResetPassword = $user->hasRole('pegawai') || auth()->user()->isSuperAdmin())
                             <tr>
                                 <td class="fw-semibold">{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
@@ -91,6 +92,12 @@
                                     </span>
                                 </td>
                                 <td class="text-center text-nowrap">
+                                    @if ($canResetPassword && $user->id !== auth()->id())
+                                        <button class="btn btn-sm btn-outline-warning" title="Reset Password"
+                                                data-bs-toggle="modal" data-bs-target="#resetPassword{{ $user->id }}">
+                                            <i class="bi bi-key"></i>
+                                        </button>
+                                    @endif
                                     <button class="btn btn-sm btn-outline-osdmrb" title="Ubah"
                                             data-bs-toggle="modal" data-bs-target="#editUser{{ $user->id }}">
                                         <i class="bi bi-pencil"></i>
@@ -115,6 +122,7 @@
 
 {{-- Modals ubah pengguna --}}
 @foreach ($users as $user)
+    @php($canResetPassword = $user->hasRole('pegawai') || auth()->user()->isSuperAdmin())
     <div class="modal fade" id="editUser{{ $user->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 14px">
@@ -138,10 +146,13 @@
                             <label class="form-label">Email <span class="text-danger">*</span></label>
                             <input type="email" name="email" class="form-control" required value="{{ old('email', $user->email) }}">
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password Baru</label>
-                            <input type="password" name="password" class="form-control" minlength="8" placeholder="Kosongkan bila tidak diubah">
-                        </div>
+                        @if ($canResetPassword)
+                            <div class="mb-3">
+                                <label class="form-label">Password Baru</label>
+                                <input type="password" name="password" class="form-control" minlength="8" placeholder="Kosongkan bila tidak diubah">
+                                <div class="form-text">Admin Bagian hanya dapat mengubah password akun Pegawai.</div>
+                            </div>
+                        @endif
                         <div class="mb-3">
                             <label class="form-label">Data Pegawai</label>
                             <select name="employee_id" class="form-select">
@@ -178,6 +189,52 @@
             </div>
         </div>
     </div>
+
+    {{-- Modal bantu reset password (khusus akun Pegawai bagi Admin Bagian) --}}
+    @if ($canResetPassword && $user->id !== auth()->id())
+        <div class="modal fade" id="resetPassword{{ $user->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 14px">
+                    <form method="POST" action="{{ route('users.reset-password', $user) }}">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold" style="font-size: 15px; color: #143647">
+                                <i class="bi bi-key me-1"></i> Reset Password
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <p class="small text-muted">
+                                Reset password akun <strong>{{ $user->name }}</strong> ({{ $user->email }}).
+                                Password baru akan langsung aktif — informasikan kepada pegawai terkait.
+                            </p>
+                            <div class="mb-3">
+                                <label class="form-label">Password Baru <span class="text-danger">*</span></label>
+                                <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" required minlength="8" autocomplete="new-password">
+                                @error('password')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Konfirmasi Password <span class="text-danger">*</span></label>
+                                <input type="password" name="password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-warning btn-sm px-4">
+                                <i class="bi bi-arrow-repeat"></i> Reset Password
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endforeach
 
 @endsection

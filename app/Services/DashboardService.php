@@ -58,9 +58,26 @@ class DashboardService
         $balai = collect($filters['balai'] ?? [])->filter()->values();
         $query->when($balai->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($balai)));
 
-        // Status ASN — mis. ASN + PPPK + CPNS sekaligus
-        $statusAsn = collect($filters['status_asn'] ?? [])->filter()->values();
-        $query->when($statusAsn->isNotEmpty(), fn (Builder $q) => $q->whereIn('employment_status_id', $statusAsn));
+        // Status ASN — mis. ASN + PPPK + CPNS sekaligus.
+        // Opsi khusus "Non ASN" (nilai = Employee::TYPE_NON_ASN) tersedia
+        // di checklist: bila dicentang, kartu Non ASN ikut terhitung.
+        // Pegawai berstatus ASN namun TMT ASN-nya KOSONG dihitung CPNS
+        // (catatan rapat 25 Sept 2026) sehingga filter CPNS menampilkan
+        // data tersebut dan angka kartu ASN/CPNS konsisten.
+        $statusAsn = collect($filters['status_asn'] ?? [])->filter()->map(fn ($v) => trim((string) $v))->values();
+        $statusIds = $statusAsn->reject(fn ($v) => $v === Employee::TYPE_NON_ASN)
+            ->map(fn ($v) => (int) $v)->filter()->unique()->values();
+
+        if ($statusAsn->isNotEmpty()) {
+            if ($statusIds->isEmpty()) {
+                // HANYA "Non ASN" yang dicentang → tidak ada pegawai
+                // ASN yang cocok, semua kartu berbasis ASN menjadi 0
+                // (kartu Non ASN tetap terhitung lewat nonAsnQuery).
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(fn (Builder $w) => $this->whereEffectiveStatus($w, $statusIds));
+            }
+        }
 
         // Golongan — bisa pilih lebih dari satu
         $rank = collect($filters['rank'] ?? [])->filter()->values();
@@ -72,7 +89,9 @@ class DashboardService
 
         $query->when($filters['gender'] ?? null, fn (Builder $q, $v) => $q->whereIn('gender', collect($v)->filter()->values()));
         $query->when($filters['search'] ?? null, function (Builder $q, $v) {
-            $q->where(fn ($w) => $w->where('name', 'like', "%{$v}%")->orWhere('nip', 'like', "%{$v}%"));
+            // kolom dikualifikasi "employees." — query dashboard bisa di-join
+            // dgn tabel master (employment_statuses/units) yang juga punya kolom name
+            $q->where(fn ($w) => $w->where('employees.name', 'like', "%{$v}%")->orWhere('employees.nip', 'like', "%{$v}%"));
         });
 
         return $query;
@@ -84,6 +103,10 @@ class DashboardService
      * eselon/balai, tidak lagi muncul sama di semua filter).
      * Filter yang relevan: unit kerja (es1/es2/balai + turunannya)
      * dan pencarian nama/NIP.
+     *
+     * Unit kerja pegawai Non ASN tidak diketahui → seluruhnya dianggap
+     * berada di SEKRETARIAT JENDERAL (termasuk yang unit_id-nya NULL),
+     * sehingga kartu Non ASN ikut berubah ketika filter diganti-ganti.
      */
     public function nonAsnQuery(array $filters): Builder
     {
@@ -91,16 +114,121 @@ class DashboardService
             ->where('employee_type', Employee::TYPE_NON_ASN)
             ->where('is_active', true);
 
+        // Filter Status ASN: kartu Non ASN hanya berisi bila opsi "Non ASN"
+        // ikut dicentang; bila user memilih status ASN lain saja → 0.
+        $statusAsn = collect($filters['status_asn'] ?? [])->filter()->map(fn ($v) => trim((string) $v))->values();
+        if ($statusAsn->isNotEmpty() && ! $statusAsn->contains(Employee::TYPE_NON_ASN)) {
+            $query->whereRaw('1 = 0');
+        }
+
         $unitIds = collect([$filters['es1'] ?? [], $filters['es2'] ?? [], $filters['balai'] ?? []])
             ->flatten()
             ->filter()
             ->values();
 
-        $query->when($unitIds->isNotEmpty(), fn (Builder $q) => $q->whereIn('unit_id', $this->unitDescendants($unitIds)));
+        $query->when($unitIds->isNotEmpty(), function (Builder $q) use ($unitIds) {
+            $ids = $this->unitDescendants($unitIds);
+
+            $q->where(function (Builder $w) use ($ids) {
+                $w->whereIn('unit_id', $ids);
+
+                // Non ASN tanpa unit kerja dianggap di Sekretariat Jenderal
+                if (in_array($this->setjenUnitId(), $ids, false)) {
+                    $w->orWhereNull('unit_id');
+                }
+            });
+        });
 
         $query->when($filters['search'] ?? null, fn (Builder $q, $v) => $q->where(fn ($w) => $w
             ->where('name', 'like', "%{$v}%")
             ->orWhere('nip', 'like', "%{$v}%")));
+
+        return $query;
+    }
+
+    /**
+     * ID unit Sekretariat Jenderal (tempat berkumpulnya pegawai Non ASN
+     * yang unit kerjanya tidak diketahui).
+     */
+    private ?int $setjenId = null;
+
+    private function setjenUnitId(): ?int
+    {
+        if ($this->setjenId === null) {
+            $id = Unit::where('code', 'SETJEN')->value('id')
+                ?? Unit::where('name', 'like', 'Sekretariat Jenderal%')->value('id');
+
+            $this->setjenId = $id ? (int) $id : 0;
+        }
+
+        return $this->setjenId ?: null;
+    }
+
+    /**
+     * ID status master "ASN/PNS" dan "CPNS" — dasar aturan status efektif.
+     */
+    private ?array $statusIdMap = null;
+
+    private function statusIdMap(): array
+    {
+        if ($this->statusIdMap === null) {
+            $rows = EmploymentStatus::query()->get(['id', 'code', 'name']);
+
+            $isAsn = fn ($s) => in_array(strtoupper(trim($s->code)), ['ASN', 'PNS'], true)
+                || in_array(strtolower(trim($s->name)), ['asn', 'pns'], true);
+            $isCpns = fn ($s) => strtoupper(trim($s->code)) === 'CPNS'
+                || strtolower(trim($s->name)) === 'cpns';
+
+            $this->statusIdMap = [
+                'asn' => $rows->filter($isAsn)->pluck('id')->map(fn ($v) => (int) $v)->values()->all(),
+                'cpns' => $rows->filter($isCpns)->pluck('id')->map(fn ($v) => (int) $v)->values()->all(),
+            ];
+        }
+
+        return $this->statusIdMap;
+    }
+
+    /**
+     * Kondisi WHERE status kepegawaian efektif:
+     * - CPNS  : status CPNS, ATAU berstatus ASN namun TMT ASN kosong;
+     * - ASN   : berstatus ASN dengan TMT ASN sudah terisi;
+     * - lainnya (PPPK dll) dicocokkan apa adanya.
+     *
+     * @param  \Illuminate\Support\Collection<int, int>  $statusIds
+     */
+    private function whereEffectiveStatus(Builder $query, \Illuminate\Support\Collection $statusIds): Builder
+    {
+        $map = $this->statusIdMap();
+        $asnCpns = array_merge($map['asn'], $map['cpns']);
+
+        // status selain ASN/CPNS (mis. PPPK Penuh/Paruh Waktu) — cocok biasa
+        $plain = $statusIds->filter(fn ($id) => ! in_array($id, $asnCpns, true))->values();
+        if ($plain->isNotEmpty()) {
+            $query->whereIn('employment_status_id', $plain);
+        }
+
+        $hasCpns = $statusIds->contains(fn ($id) => in_array($id, $map['cpns'], true));
+        if ($hasCpns && (! empty($map['cpns']) || ! empty($map['asn']))) {
+            $query->orWhere(function (Builder $w) use ($map) {
+                if (! empty($map['cpns'])) {
+                    $w->whereIn('employment_status_id', $map['cpns']);
+                }
+
+                // ASN dengan TMT ASN kosong → efektif CPNS
+                if (! empty($map['asn'])) {
+                    $w->orWhere(fn (Builder $a) => $a
+                        ->whereIn('employment_status_id', $map['asn'])
+                        ->whereNull('tmt_pns'));
+                }
+            });
+        }
+
+        $hasAsn = $statusIds->contains(fn ($id) => in_array($id, $map['asn'], true));
+        if ($hasAsn && ! empty($map['asn'])) {
+            $query->orWhere(fn (Builder $a) => $a
+                ->whereIn('employment_status_id', $map['asn'])
+                ->whereNotNull('tmt_pns'));
+        }
 
         return $query;
     }
@@ -148,8 +276,27 @@ class DashboardService
 
         $pppkCount = (clone $query)->whereHas('employmentStatus', fn ($q) => $q->where('name', 'like', 'PPPK%'))->count();
 
-        // Pegawai ASN (tanpa PPPK / CPNS) untuk KPI total keseluruhan pegawai
-        $asnStatusCount = (clone $query)->whereHas('employmentStatus', fn ($q) => $q->where('name', 'ASN'))->count();
+        // Pegawai ASN TETAP (PNS) untuk KPI — hanya yang TMT ASN-nya sudah
+        // terisi; ASN dengan TMT ASN kosong dihitung CPNS (status efektif).
+        $map = $this->statusIdMap();
+        $asnStatusCount = empty($map['asn'])
+            ? 0
+            : (clone $query)->whereIn('employment_status_id', $map['asn'])
+                ->whereNotNull('tmt_pns')->count();
+
+        // CPNS efektif: status CPNS, atau ASN yang TMT ASN-nya masih kosong
+        $cpnsCount = (empty($map['cpns']) && empty($map['asn'])) ? 0 : (clone $query)
+            ->where(function (Builder $w) use ($map) {
+                if (! empty($map['cpns'])) {
+                    $w->whereIn('employment_status_id', $map['cpns']);
+                }
+
+                if (! empty($map['asn'])) {
+                    $w->orWhere(fn (Builder $a) => $a
+                        ->whereIn('employment_status_id', $map['asn'])
+                        ->whereNull('tmt_pns'));
+                }
+            })->count();
 
         $retiringSoon = (clone $query)->whereNotNull('retirement_date')
             ->whereBetween('retirement_date', [now(), now()->addYears(2)])
@@ -171,7 +318,7 @@ class DashboardService
             ->whereYear('retirement_date', now()->year)
             ->count();
 
-        return compact('totalAsn', 'averageAge', 'functionalCount', 'structuralCount', 'pppkCount', 'retiringSoon', 'nonAsnCount', 'retiringThisYear', 'asnStatusCount', 'totalAll');
+        return compact('totalAsn', 'averageAge', 'functionalCount', 'structuralCount', 'pppkCount', 'retiringSoon', 'nonAsnCount', 'retiringThisYear', 'asnStatusCount', 'cpnsCount', 'totalAll');
     }
 
     /**
@@ -180,15 +327,25 @@ class DashboardService
     public function getStatusComposition(Builder $query): array
     {
         // pegawai yang BUP-nya sudah terlewati tetap dihitung, namun
-        // otomatis digolongkan berstatus "Pensiun"
+        // otomatis digolongkan berstatus "Pensiun";
+        // ASN dengan TMT ASN kosong ditampilkan sebagai "CPNS" (efektif)
         return (clone $query)
             ->join('employment_statuses', 'employment_statuses.id', '=', 'employees.employment_status_id')
-            ->selectRaw("CASE WHEN employees.retirement_date IS NOT NULL AND employees.retirement_date < ? THEN 'Pensiun' ELSE employment_statuses.name END as label, COUNT(*) as total", [today()->toDateString()])
+            ->selectRaw(
+                "CASE
+                    WHEN employees.retirement_date IS NOT NULL AND employees.retirement_date < ? THEN 'Pensiun'
+                    WHEN (employment_statuses.code IN ('ASN','PNS') OR LOWER(TRIM(employment_statuses.name)) IN ('asn','pns'))
+                         AND employees.tmt_pns IS NULL THEN 'CPNS'
+                    ELSE employment_statuses.name
+                END as label, COUNT(*) as total",
+                [today()->toDateString()]
+            )
             ->groupBy('label')
             ->orderByDesc('total')
             ->get()
             ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total])
-            ->all();    }
+            ->all();
+    }
 
     /**
      * Chart tingkat pendidikan.

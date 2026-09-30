@@ -34,8 +34,11 @@
             </div>
             <div class="col-lg-2 col-md-4 col-6">
                 <label>Status ASN</label>
+                {{-- Opsi "Non ASN" ditambahkan di akhir daftar status
+                     (nilai = Employee::TYPE_NON_ASN) supaya kartu Non ASN
+                     ikut terhitung saat filter status digunakan --}}
                 <x-multi-select name="status_asn" placeholder="Semua Status"
-                                :options="$filterOptions['statusList']->pluck('name', 'id')"
+                                :options="$filterOptions['statusList']->pluck('name', 'id')->put(\App\Models\Employee::TYPE_NON_ASN, 'Non ASN')"
                                 :selected="$filters['status_asn'] ?? []" />
             </div>
             <div class="col-lg-2 col-md-4 col-6">
@@ -169,9 +172,10 @@
     </div>
 </div>
 
-<!-- ================= STATISTIC CARDS KENAIKAN JABATAN + PENGUNJUNG ================= -->
+<!-- ================= STATISTIC CARDS KENAIKAN JABATAN + PENGUNJUNG =================
+     Card "Jatuh Tempo Kenaikan" dihapus (permintaan). -->
 <div class="row g-3 mb-4">
-    <div class="col-xl-3 col-md-6">
+    <div class="col-xl-4 col-md-6">
         <a href="{{ route('audit.index') }}" class="stat-card-link">
             <div class="stat-card stat-clickable">
                 <div class="stat-icon accent"><i class="bi bi-graph-up-arrow"></i></div>
@@ -183,7 +187,7 @@
             </div>
         </a>
     </div>
-    <div class="col-xl-3 col-md-6">
+    <div class="col-xl-4 col-md-6">
         <a href="{{ route('employees.index', ['naik' => 'tahun_ini']) }}" class="stat-card-link">
             <div class="stat-card stat-clickable">
                 <div class="stat-icon success"><i class="bi bi-arrow-up-circle-fill"></i></div>
@@ -195,7 +199,7 @@
             </div>
         </a>
     </div>
-    <div class="col-xl-3 col-md-6">
+    <div class="col-xl-4 col-md-6">
         <a href="{{ route('employees.index', ['naik' => 1]) }}" class="stat-card-link">
             <div class="stat-card stat-clickable">
                 <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
@@ -207,24 +211,13 @@
             </div>
         </a>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <a href="{{ route('employees.index', ['naik' => 'overdue']) }}" class="stat-card-link">
-            <div class="stat-card stat-clickable">
-                <div class="stat-icon danger"><i class="bi bi-alarm-fill"></i></div>
-                <div>
-                    <span>Jatuh Tempo Kenaikan</span>
-                    <h2>{{ number_format($promotionStats['overdue']) }}</h2>
-                    <small>melewati estimasi kenaikan</small>
-                </div>
-            </div>
-        </a>
-    </div>
 </div>
 
 <!-- ================= STATISTIC CARDS KENAIKAN GAJI BERKALA (KGB) =================
-     KGB berkala 2 tahun untuk ASN, CPNS & PPPK/P3K. -->
+     KGB berkala 2 tahun untuk ASN, CPNS & PPPK/P3K.
+     Card "Jatuh Tempo KGB" dihapus (permintaan). -->
 <div class="row g-3 mb-4">
-    <div class="col-xl-4 col-md-4">
+    <div class="col-xl-6 col-md-6">
         <a href="{{ route('employees.index', ['kgb' => 'tahun_ini']) }}" class="stat-card-link">
             <div class="stat-card stat-clickable">
                 <div class="stat-icon success"><i class="bi bi-cash-coin"></i></div>
@@ -236,7 +229,7 @@
             </div>
         </a>
     </div>
-    <div class="col-xl-4 col-md-4">
+    <div class="col-xl-6 col-md-6">
         <a href="{{ route('employees.index', ['kgb' => 1]) }}" class="stat-card-link">
             <div class="stat-card stat-clickable">
                 <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
@@ -244,18 +237,6 @@
                     <span>KGB &le; 1 Tahun</span>
                     <h2>{{ number_format($salaryRaiseStats['dueSoon']) }}</h2>
                     <small>{{ $salaryRaiseStats['nextYear'] }} dijadwalkan tahun depan</small>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-xl-4 col-md-4">
-        <a href="{{ route('employees.index', ['kgb' => 'overdue']) }}" class="stat-card-link">
-            <div class="stat-card stat-clickable">
-                <div class="stat-icon danger"><i class="bi bi-alarm"></i></div>
-                <div>
-                    <span>Jatuh Tempo KGB</span>
-                    <h2>{{ number_format($salaryRaiseStats['overdue']) }}</h2>
-                    <small>melewati jadwal kenaikan gaji</small>
                 </div>
             </div>
         </a>
@@ -506,7 +487,7 @@
                                 <td>{{ $employee->position_name ?: ($employee->currentPosition?->position?->name ?? '-') }}</td>
                                 <td>{{ $employee->rank?->code ?? '-' }}</td>
                                 <td>
-                                    <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) ? 'bg-primary' : 'bg-info') }}">
+                                    <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info') }}">
                                         {{ $employee->display_status }}
                                     </span>
                                 </td>

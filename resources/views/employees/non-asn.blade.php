@@ -10,6 +10,7 @@
     if ($categoryFilter->isEmpty() && is_string($filters['category'] ?? null) && $filters['category'] !== '') {
         $categoryFilter = collect([$filters['category']]);
     }
+    $canBulkDelete = auth()->user()->isSuperAdmin();
 @endphp
 
 {{-- ================= FILTER ================= --}}
@@ -46,6 +47,9 @@
         <h5 class="mb-0">Daftar Pegawai Non ASN ({{ $employees->total() }})</h5>
 
         <div class="d-flex gap-2 flex-wrap">
+            {{-- Hapus massal via ceklis — hanya tampil untuk SUPER ADMIN --}}
+            @include('employees.partials.bulk-delete', ['type' => 'non_asn'])
+
             <a href="{{ route('employees.non-asn.create') }}" class="btn btn-sm btn-osdmrb">
                 <i class="bi bi-plus-lg"></i> Tambah
             </a>
@@ -59,6 +63,9 @@
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
+                    @if ($canBulkDelete)
+                        <th style="width:36px"><input type="checkbox" class="form-check-input m-0 bulk-select-all" title="Pilih semua"></th>
+                    @endif
                     <th>#</th>
                     <th>Nama</th>
                     <th>ID Pegawai</th>
@@ -71,6 +78,9 @@
             <tbody>
                 @forelse ($employees as $employee)
                     <tr>
+                        @if ($canBulkDelete)
+                            <td><input type="checkbox" class="form-check-input m-0 bulk-check" value="{{ $employee->id }}"></td>
+                        @endif
                         <td>{{ $employees->firstItem() + $loop->iteration - 1 }}</td>
                         <td class="fw-semibold">{{ $employee->name }}
                             @unless($employee->is_active)<span class="badge bg-secondary">Non-aktif</span>@endunless
@@ -94,7 +104,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="text-center text-muted py-4">
+                    <tr><td colspan="{{ $canBulkDelete ? 8 : 7 }}" class="text-center text-muted py-4">
                         Tidak ada data pegawai non ASN.<br>
                         <small>Klik <strong>Import Excel</strong> untuk mengunggah berkas daftar
                         Security / Cleaning Service / Pramubakti.</small>
