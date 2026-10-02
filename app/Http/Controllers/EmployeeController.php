@@ -185,7 +185,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Form import pegawai NON ASN dari Excel (3 format berkas instansi didukung).
+     * Form import pegawai NON ASN dari Excel
+     * (format baru bank data lengkap + 3 format berkas lama).
      */
     public function nonAsnImportForm()
     {
@@ -216,11 +217,11 @@ class EmployeeController extends Controller
         }
 
         if ($result['created'] === 0 && $result['updated'] === 0) {
-            return back()->with('error', 'Tidak ada baris nama pegawai yang terbaca. Pastikan berkas berisi daftar nama (kolom berjudul "NAMA").');
+            return back()->with('error', 'Tidak ada baris nama pegawai yang terbaca. Pastikan berkas berisi daftar pegawai (kolom berjudul "NAMA" / "NAMA LENGKAP").');
         }
 
         return redirect()->route('employees.non-asn')
-            ->with('success', "Import kategori {$result['category']} selesai: {$result['created']} pegawai baru, {$result['updated']} diperbarui.");
+            ->with('success', "Import non ASN kategori {$result['category']} selesai: {$result['created']} pegawai baru, {$result['updated']} diperbarui.");
     }
 
     /**

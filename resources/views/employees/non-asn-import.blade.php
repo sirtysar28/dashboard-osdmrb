@@ -41,8 +41,8 @@
                         @endforeach
                     </select>
                     <small class="text-muted d-block mb-3">
-                        Nama berkas yang mengandung <code>security</code> / <code>cleaning</code> /
-                        <code>pramubakti</code> / <code>personil pb</code> dikenali otomatis.
+                        Nama berkas / judul sheet yang mengandung <code>security</code>, <code>cleaning</code>,
+                        <code>pramubakti</code>, <code>driver</code>, atau <code>teknisi</code> dikenali otomatis.
                     </small>
 
                     <div class="d-flex gap-2 flex-wrap">
@@ -64,13 +64,15 @@
                     posisi judul &amp; kolom yang tidak beraturan dikenali otomatis.
                 </div>
                 <ol class="import-steps ps-3 mb-3">
-                    <li>Unggah satu berkas per kategori (Security / Cleaning Service / Pramubakti).</li>
+                    <li><strong>Format bank data baru</strong> (NAMA LENGKAP, NIK, NO. HP, EMAIL, AGAMA,
+                        TEMPAT, TANGGAL LAHIR, ALAMAT DOMISILI, UNIT PENEMPATAN) terbaca lengkap
+                        — NIK jadi ID pegawai, unit penempatan dipetakan ke unit kerja dashboard.</li>
+                    <li>Berkas dengan <strong>beberapa sheet</strong> (mis. Pramubakti / Driver / Teknisi)
+                        diproses sekaligus — kategori mengikuti judul sheet.</li>
                     <li>Baris yang berisi kolom <strong>NAMA</strong> akan diproses; baris kosong, judul, dan
                         tanda tangan dilewati otomatis.</li>
-                    <li>Berkas <strong>Personil PB</strong> dengan kolom <code>ID PEGAWAI</code>, <code>JABATAN</code>,
-                        <code>UNIT KERJA ESELON II</code> akan terbaca lengkap.</li>
-                    <li>Pegawai dengan <strong>ID yang sudah ada</strong> akan diperbarui, ID baru ditambahkan.</li>
-                    <li>ID kosong dibuat otomatis: <code>SEC-NAMA</code>, <code>CS-NAMA</code>, atau <code>PB-NAMA</code>.</li>
+                    <li>Pegawai dengan <strong>NIK yang sudah ada</strong> akan diperbarui, NIK baru ditambahkan.</li>
+                    <li>NIK kosong dibuat otomatis: <code>SEC-NAMA</code>, <code>CS-NAMA</code>, atau <code>PB-NAMA</code>.</li>
                     <li>Kategori bisa dipilih manual bila nama berkas tidak mengandung kata kunci.</li>
                 </ol>
             </div>
@@ -82,15 +84,21 @@
                         <thead><tr><th>Berkas</th><th>Kolom terbaca</th></tr></thead>
                         <tbody>
                             <tr>
-                                <td>Personil PB</td>
+                                <td>Bank data baru<br><span class="text-muted">(Cleaning / Pramubakti / Driver / Teknisi)</span></td>
+                                <td><code>NAMA LENGKAP</code>, <code>NIK</code>, <code>NO. HP</code>, <code>EMAIL</code>,
+                                    <code>AGAMA</code>, <code>TEMPAT</code>, <code>TANGGAL LAHIR</code>,
+                                    <code>ALAMAT DOMISILI</code>, <code>UNIT PENEMPATAN</code></td>
+                            </tr>
+                            <tr>
+                                <td>Personil PB (lama)</td>
                                 <td><code>ID PEGAWAI</code>, <code>NAMA</code>, <code>UNIT KERJA ESELON II</code></td>
                             </tr>
                             <tr>
-                                <td>Security</td>
+                                <td>Security (lama)</td>
                                 <td><code>NAMA</code>, <code>JABATAN</code> (Koordinator, Pamdal, Chief, Secwan, &hellip;)</td>
                             </tr>
                             <tr>
-                                <td>Cleaning servis</td>
+                                <td>Cleaning servis (lama)</td>
                                 <td><code>NAMA</code> saja</td>
                             </tr>
                         </tbody>

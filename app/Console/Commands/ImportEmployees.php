@@ -14,9 +14,12 @@ use Maatwebsite\Excel\Facades\Excel;
  * 1. ASN     : format "Data Dashboard.xlsx"
  *              php artisan employees:import "Data Dashboard.xlsx"
  *
- * 2. NON ASN : format daftar Security / Pramubakti / Cleaning Service
+ * 2. NON ASN : format bank data baru (NAMA LENGKAP, NIK, NO. HP, EMAIL, AGAMA,
+ *              TEMPAT, TANGGAL LAHIR, ALAMAT DOMISILI, UNIT PENEMPATAN — multi-sheet
+ *              Pramubakti/Driver/Teknisi didukung) maupun format daftar lama
+ *              (Security / Pramubakti / Cleaning Service).
  *              php artisan employees:import "file.xlsx" --type=nonasn
- *              (kategori dideteksi otomatis dari nama file bila tidak diberikan)
+ *              (kategori dideteksi otomatis dari nama berkas/judul sheet bila tidak diberikan)
  *
  * Kedua jalur juga tersedia dari dashboard admin (menu Data Pegawai / Pegawai Non ASN).
  */

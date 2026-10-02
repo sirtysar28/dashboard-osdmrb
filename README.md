@@ -277,11 +277,19 @@ Halaman **Pegawai Non ASN** (`/employees/non-asn`) memakai form tersendiri yang 
 dari form ASN (nama, ID, kategori, jabatan, penempatan, kontak) — tanpa kolom pangkat/eselon/pendidikan/BUP.
 
 Tombol **Import Excel** di halaman tersebut dapat mengunggah **langsung** berkas daftar non ASN instansi
-apa adanya — posisi header yang tidak beraturan dikenali otomatis (didukung: daftar Personil PB dengan
-ID + unit kerja, daftar Security dengan jabatan, daftar Cleaning Service nama saja).
-Kategori terdeteksi dari nama berkas (`security` / `cleaning` / `pramubakti` / `personil pb`),
-baris kosong & kolom tanda tangan otomatis dilewati, dan import ulang bersifat **aman**
-(pegawai lama diperbarui berdasarkan ID atau nama+kategori, tidak mendobel data).
+apa adanya — posisi header yang tidak beraturan dikenali otomatis:
+- **Format bank data baru (Okt 2026)**: `NO. | NAMA LENGKAP | NIK | NO. HP | EMAIL | AGAMA | TEMPAT |
+  TANGGAL LAHIR | ALAMAT DOMISILI | UNIT PENEMPATAN` — seluruh kolom terbaca lengkap: NIK menjadi ID
+  pegawai, unit penempatan dipetakan ke unit kerja dashboard (segment sebelum koma, tahan typo/singkatan
+  seperti "Ditjen", "Transmigarsi"), tanggal lahir mendukung sel tanggal Excel, serial, `24/09/1985`,
+  maupun `6 Januari 2000` (typo seperti "Deseember" tetap lolos). Satu berkas multi-sheet
+  (Pramubakti/Driver/Teknisi) diproses sekaligus — kategori mengikuti judul sheet.
+- **Format lama**: daftar Personil PB dengan ID + unit kerja, daftar Security dengan jabatan,
+  daftar Cleaning Service nama saja.
+
+Kategori terdeteksi dari nama berkas / judul sheet (`security` / `cleaning` / `pramubakti` / `driver` /
+`teknisi` / `personil pb`), baris kosong & kolom tanda tangan otomatis dilewati, dan import ulang bersifat
+**aman** (pegawai lama diperbarui berdasarkan NIK/ID atau nama+kategori, tidak mendobel data).
 
 ### Login 2 lapis OTP email (default NONAKTIF)
 Sekarang login seperti biasa (email + password + captcha). Fitur kode OTP ke email terdaftar
@@ -644,3 +652,44 @@ php artisan config:clear
 php artisan route:clear
 php artisan view:clear
 ```
+
+---
+
+## 🚀 Update 2 Oktober 2026 — Import Non ASN format bank data baru
+
+Berkas **bank data Non ASN format baru** (BANK DATA CLEANING SERVIS, Data Pramubakti/Driver/Teknisi,
+Format Data Non ASN) kini dapat diunggah **langsung apa adanya** dari halaman *Pegawai Non ASN →
+Import Excel* maupun `php artisan employees:import --type=nonasn`:
+
+1. **Kolom lengkap terbaca** — `NAMA LENGKAP`, `NIK`, `NO. HP`, `EMAIL`, `AGAMA`, `TEMPAT`,
+   `TANGGAL LAHIR`, `ALAMAT DOMISILI`, `UNIT PENEMPATAN` (kolom `NO.` dilewati). NIK menjadi
+   ID pegawai (`nip`); tanda petik Excel di depan NIK (`'3175...`) dan sel numeric besar
+   dibaca tanpa notasi ilmiah.
+2. **Tanggal lahir campuran format** — sel tanggal Excel, serial Excel (mis. `26040`), teks
+   `24/09/1985`, `21-02-1995`, `6 Januari 2000`, sampai salah ketik (`16 Deseember 2000`,
+   `20-Desember-1999`, `04 Agustus1989`) tetap terbaca. Data yang memang rusak (mis. `16/052003`)
+   dibiarkan kosong, bukan error.
+3. **Email & telepon dibersihkan otomatis** — email berspasi akibat salah ketik dirapikan &
+   divalidasi; nomor HP dari sel numeric mendapat angka 0 di depan kembali.
+4. **Unit Penempatan → unit kerja dashboard** — segment sebelum koma dipetakan ke master unit
+   (`"Biro Keuangan dan Barang Milik Negara, Sekretariat Jenderal"` → biro terkait), tahan
+   potongan nama (`"Pusat Data dan Informasi"`), singkatan (`"Sekretariat Ditjen ..."`) dan
+   typo (`"Transmigarsi"`, `"Kementrian"`). Yang tak dikenal (mis. `"Cleaning Servis"`) tetap
+   jatuh ke **Sekretariat Jenderal** sesuai kebijakan lama.
+5. **Multi-sheet** — berkas dengan sheet Pramubakti / Driver / Teknisi diproses sekaligus;
+   kategori mengikuti judul sheet (daftar kategori dashboard otomatis bertambah `Driver`/`Teknisi`).
+6. **Import ulang aman** — pegawai dicocokkan via NIK atau nama+kategori; data lama
+   diperbarui/dilengkapi, tidak mendobel. Format lama (Personil PB / Security / Cleaning
+   nama saja) tetap didukung.
+
+Smoke test: `tests/Feature/UpdateOctober2Test.php`.
+
+### Deployment update ini
+```bash
+composer install --no-dev        # tanpa dependency baru
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
+Lalu unggah berkas bank data baru melalui menu **Pegawai Non ASN → Import Excel**
+(kategori terdeteksi otomatis dari nama berkas/judul sheet).
