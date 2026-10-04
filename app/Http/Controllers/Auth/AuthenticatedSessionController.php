@@ -91,7 +91,11 @@ class AuthenticatedSessionController extends Controller
 
         // ---- Layer 2: OTP via email ----
         if (Setting::bool('otp_enabled', true)) {
-            $this->sendOtpToUser($user, $request);
+            if (! $this->sendOtpToUser($user, $request)) {
+                AuditLog::record(AuditLog::EVENT_OTP, 'auth', 'GAGAL mengirim kode OTP ke email '.$user->email.' (periksa konfigurasi SMTP)', user: $user);
+
+                return back()->withErrors(['email' => 'Kode OTP gagal dikirim ke email Anda. Silakan coba lagi beberapa saat atau hubungi Administrator Utama.'])->onlyInput('email');
+            }
 
             $request->session()->put('otp_user_id', $user->id);
             $request->session()->put('otp_remember', $request->boolean('remember'));
@@ -108,12 +112,14 @@ class AuthenticatedSessionController extends Controller
 
     /**
      * Kirim kode OTP ke email pengguna.
+     *
+     * @return bool true bila email berhasil dikirim (atau mode 'log' aktif), false bila gagal.
      */
-    public function sendOtpToUser(User $user, Request $request): void
+    public function sendOtpToUser(User $user, Request $request): bool
     {
         $code = $user->generateOtp();
 
-        Notifier::send(
+        $sent = Notifier::send(
             to: $user->email,
             type: 'otp',
             title: 'Kode Verifikasi Login (OTP)',
@@ -128,9 +134,11 @@ class AuthenticatedSessionController extends Controller
 
         // Bila mailer masih 'log' (belum disetting SMTP), tampilkan kode di layar
         // agar proses UAT/pengembangan tetap bisa berjalan.
-        if (config('mail.default') === 'log' && Setting::bool('smtp_enabled') === false) {
+        if ($sent && config('mail.default') === 'log' && ! Setting::bool('smtp_enabled')) {
             session()->flash('otp_debug_code', $code);
         }
+
+        return $sent;
     }
 
     /**

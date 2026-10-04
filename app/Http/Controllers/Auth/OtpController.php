@@ -122,7 +122,11 @@ class OtpController extends Controller
                 : 'Mohon tunggu sebentar sebelum meminta kode baru.']);
         }
 
-        app(AuthenticatedSessionController::class)->sendOtpToUser($user, $request);
+        if (! app(AuthenticatedSessionController::class)->sendOtpToUser($user, $request)) {
+            AuditLog::record(AuditLog::EVENT_OTP, 'auth', 'GAGAL mengirim ulang kode OTP ke email '.$user->email.' (periksa konfigurasi SMTP)', user: $user);
+
+            return back()->withErrors(['otp' => 'Kode OTP gagal dikirim ke email Anda. Periksa konfigurasi SMTP atau hubungi Administrator Utama.']);
+        }
 
         return back()->with('status', 'Kode OTP baru telah dikirim ke email Anda.');
     }

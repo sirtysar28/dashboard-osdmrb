@@ -31,19 +31,32 @@ class Notifier
             return; // gunakan konfigurasi bawaan .env
         }
 
+        $port = (int) Setting::get('smtp_port', 587);
+        $encryption = strtolower((string) Setting::get('smtp_encryption', 'tls'));
+
+        // CATATAN: Laravel 11 TIDAK lagi membaca key 'encryption' pada mailer.
+        // Yang dibaca adalah 'scheme': 'smtp' = STARTTLS (port 587),
+        // 'smtps' = SSL implisit (port 465 / pilihan enkripsi "ssl").
+        $scheme = ($encryption === 'ssl' || $port === 465) ? 'smtps' : 'smtp';
+
         Config::set('mail.default', 'smtp');
         Config::set('mail.mailers.smtp', [
             'transport' => 'smtp',
+            'scheme' => $scheme,
             'host' => (string) Setting::get('smtp_host', config('mail.mailers.smtp.host')),
-            'port' => (int) Setting::get('smtp_port', 587),
-            'encryption' => (string) Setting::get('smtp_encryption', 'tls'),
+            'port' => $port,
             'username' => (string) Setting::get('smtp_username'),
             'password' => (string) Setting::get('smtp_password'),
-            'timeout' => null,
+            'timeout' => 15,
             'local_domain' => parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost',
         ]);
         Config::set('mail.from.address', (string) Setting::get('smtp_from_address', config('mail.from.address')));
         Config::set('mail.from.name', (string) Setting::get('smtp_from_name', config('mail.from.name')));
+
+        // Buang mailer yang mungkin sudah ter-resolve dengan konfigurasi .env,
+        // agar mailer dibangun ulang memakai konfigurasi Pengaturan di atas.
+        Mail::purge('smtp');
+        Mail::purge('log');
     }
 
     /**
