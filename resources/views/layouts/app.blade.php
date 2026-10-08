@@ -163,7 +163,7 @@
                 @endif
                 <a href="{{ route('modules.sop') }}"
                    class="menu-item {{ request()->routeIs('modules.sop') ? 'active' : '' }}">
-                    <i class="bi bi-journal-text"></i><span>SOP Kementerian</span>
+                    <i class="bi bi-journal-text"></i><span>Dokumen Kepegawaian</span>
                 </a>
                 <a href="{{ route('modules.struktur') }}"
                    class="menu-item {{ request()->routeIs('modules.struktur') ? 'active' : '' }}">

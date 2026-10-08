@@ -214,36 +214,36 @@
                         @endforeach
                     </select>
                 </div>
-                @foreach ([1 => 'Pendidikan Terakhir 1 (S1)', 2 => 'Pendidikan 2 (S2)', 3 => 'Pendidikan 3 (S3)'] as $i => $label)
+                @foreach ([1 => 'Pendidikan 1 (S1)', 2 => 'Pendidikan 2 (S2)', 3 => 'Pendidikan 3 (S3)'] as $i => $label)
                     @php
                         $defaults = $educationDefaults[$i] ?? ['campus' => '', 'major' => '', 'custom' => ''];
                         $selCampus = old("education_{$i}_campus", $defaults['campus']);
-                        $isCustom = $selCampus === 'custom';
                     @endphp
                     <div class="mb-3">
                         <label class="form-label">{{ $label }}</label>
+                        {{-- Kotak pencarian nama perguruan tinggi: ketik kata kunci lalu
+                             pilih dari daftar yang muncul (Catatan 30 Sept 2026) --}}
+                        <div class="mb-2">
+                            <x-search-select name="education_{{ $i }}_campus"
+                                             class="education-campus-select"
+                                             data-custom-target="educationCustom{{ $i }}"
+                                             :options="$campusList->mapWithKeys(fn ($c) => [$c->id => trim($c->name.($c->city ? ' — '.$c->city : ''))])->put('custom', '-- Isi Manual --')"
+                                             :value="$selCampus"
+                                             placeholder="- Pilih Kampus -"
+                                             search-placeholder="Ketik nama perguruan tinggi..." />
+                        </div>
                         <div class="row g-2">
                             <div class="col-md-7">
-                                <select name="education_{{ $i }}_campus" class="form-select education-campus-select"
-                                        data-custom-target="educationCustom{{ $i }}">
-                                    <option value="">- Pilih Kampus -</option>
-                                    @foreach ($campusList as $campus)
-                                        <option value="{{ $campus->id }}" {{ (string) $selCampus === (string) $campus->id ? 'selected' : '' }}>
-                                            {{ $campus->name }}@if ($campus->city) &mdash; {{ $campus->city }}@endif
-                                        </option>
-                                    @endforeach
-                                    <option value="custom" {{ $isCustom ? 'selected' : '' }}>-- Isi Manual --</option>
-                                </select>
-                            </div>
-                            <div class="col-md-5">
                                 <input type="text" name="education_{{ $i }}_major" class="form-control"
                                        placeholder="Jurusan (opsional)" value="{{ old("education_{$i}_major", $defaults['major']) }}">
                             </div>
+                            <div class="col-md-5 d-none" id="educationCustomWrap{{ $i }}">
+                                <input type="text" name="education_{{ $i }}_custom" id="educationCustom{{ $i }}"
+                                       class="form-control"
+                                       placeholder="Tulis nama kampus/institusi & jurusan manual"
+                                       value="{{ old("education_{$i}_custom", $defaults['custom']) }}">
+                            </div>
                         </div>
-                        <input type="text" name="education_{{ $i }}_custom" id="educationCustom{{ $i }}"
-                               class="form-control mt-2 {{ $isCustom ? '' : 'd-none' }}"
-                               placeholder="Tulis nama kampus/institusi & jurusan manual"
-                               value="{{ old("education_{$i}_custom", $defaults['custom']) }}">
                     </div>
                 @endforeach
             </div>
@@ -284,18 +284,24 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // toggle input manual pendidikan saat dropdown kampus diganti
-        document.querySelectorAll('.education-campus-select').forEach(function (select) {
-            select.addEventListener('change', function () {
-                var target = document.getElementById(this.dataset.customTarget);
+        document.querySelectorAll('.education-campus-select').forEach(function (input) {
+            var targetId = input.dataset.customTarget;
 
-                if (! target) return;
+            function sync() {
+                if (! targetId) return;
 
-                target.classList.toggle('d-none', this.value !== 'custom');
+                var target = document.getElementById(targetId);
+                var wrap = document.getElementById(targetId.replace('educationCustom', 'educationCustomWrap'));
+                var isCustom = input.value === 'custom';
 
-                if (this.value === 'custom') {
-                    target.focus();
-                }
-            });
+                target?.classList.toggle('d-none', ! isCustom);
+                wrap?.classList.toggle('d-none', ! isCustom);
+
+                if (isCustom) target?.focus();
+            }
+
+            input.addEventListener('change', sync);
+            sync();
         });
     });
 </script>

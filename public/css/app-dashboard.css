@@ -2792,3 +2792,76 @@ a.stat-card-link { text-decoration: none; color: inherit; display: block; height
 .ms-dropdown .ms-option:hover { background: rgba(22, 61, 79, .07); }
 .ms-dropdown .ms-option input[type="checkbox"] { flex-shrink: 0; cursor: pointer; }
 .ms-dropdown .ms-option-label { line-height: 1.25; overflow-wrap: anywhere; }
+
+/* ================= SEARCH-SELECT (single select + kotak pencarian) =================
+   Dipakai untuk daftar panjang seperti master perguruan tinggi —
+   Catatan Masukan 30 Sept 2026 (fitur pencarian nama kampus). */
+.ss-dropdown { position: relative; }
+.ss-dropdown .ss-toggle {
+    cursor: pointer;
+    background-color: #fff;
+    font-weight: 500;
+    min-height: 31px;
+    padding-right: 30px;
+}
+.ss-dropdown .ss-toggle::after { display: none; } /* sembunyikan caret bootstrap */
+.ss-dropdown .ss-caret {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #6b7280;
+    transition: transform .18s ease;
+    pointer-events: none;
+}
+.ss-dropdown.open .ss-caret { transform: translateY(-50%) rotate(180deg); }
+.ss-dropdown.has-selection .ss-toggle {
+    border-color: var(--osdmrb-primary-light);
+    color: var(--osdmrb-primary);
+    font-weight: 600;
+}
+.ss-dropdown .ss-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid var(--osdmrb-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(14, 42, 55, .14);
+    z-index: 1060;
+    padding: 6px;
+}
+.ss-dropdown.open .ss-panel { display: block; }
+.ss-dropdown .ss-search { margin-bottom: 6px; }
+.ss-dropdown .ss-options {
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ss-dropdown .ss-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+.ss-dropdown .ss-option:hover { background: rgba(22, 61, 79, .07); }
+.ss-dropdown .ss-option.selected {
+    background: rgba(22, 61, 79, .12);
+    color: var(--osdmrb-primary);
+    font-weight: 600;
+}

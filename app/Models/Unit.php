@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Unit extends Model
 {
     protected $fillable = [
-        'parent_id', 'code', 'name', 'level', 'address', 'is_active',
+        'parent_id', 'code', 'name', 'level', 'address', 'is_active', 'sort_order',
     ];
 
     protected function casts(): array
@@ -17,6 +17,12 @@ class Unit extends Model
         ];
     }
 
+    /** Urutan tampil unit kerja (urutan resmi struktur kementerian, lalu nama). */
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('sort_order')->orderBy('name');
+    }
+
     public function parent()
     {
         return $this->belongsTo(Unit::class, 'parent_id');
@@ -24,7 +30,7 @@ class Unit extends Model
 
     public function children()
     {
-        return $this->hasMany(Unit::class, 'parent_id')->orderBy('name');
+        return $this->hasMany(Unit::class, 'parent_id')->orderBy('sort_order')->orderBy('name');
     }
 
     public function employees()

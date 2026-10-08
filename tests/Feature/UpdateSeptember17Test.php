@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -142,6 +143,9 @@ class UpdateSeptember17Test extends TestCase
     {
         $employee = Employee::where('employee_type', '!=', Employee::TYPE_NON_ASN)->first();
 
+        // Catatan 30 Sept 2026: unggah sertifikat bukti keikutsertaan kini WAJIB
+        UploadedFile::fake()->create('sertifikat-seminar.pdf', 20, 'application/pdf');
+
         $this->actingAs($this->admin)
             ->post('/modul/diklat', [
                 'employee_id' => $employee->id,
@@ -151,6 +155,7 @@ class UpdateSeptember17Test extends TestCase
                 'organizer' => 'UNESCO',
                 'year' => now()->year,
                 'from' => 'profile',
+                'file' => UploadedFile::fake()->create('sertifikat-seminar.pdf', 20, 'application/pdf'),
             ])
             ->assertRedirect();
 
@@ -223,6 +228,7 @@ class UpdateSeptember17Test extends TestCase
                 'scope' => 'DALAM_NEGERI',
                 'year' => now()->year,
                 'from' => 'profile',
+                'file' => UploadedFile::fake()->create('sertifikat-diklat.pdf', 20, 'application/pdf'),
             ])
             ->assertRedirect();
 

@@ -55,13 +55,36 @@
         <div class="table-card h-100">
             <div class="card-header-custom">
                 <h5 class="mb-0"><i class="bi bi-list-columns me-2"></i>Daftar Jabatan Fungsional</h5>
-                <span class="badge bg-primary-subtle text-primary">{{ $positions->count() }} jenis</span>
+                <span class="badge bg-primary-subtle text-primary">{{ $positions->total() }} jenis</span>
             </div>
 
+            {{-- Filter nama jabatan & jenjang (Catatan 30 Sept 2026) --}}
+            <form method="GET" class="px-3 pt-3">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="text" name="nama" class="form-control form-control-sm"
+                               placeholder="Cari nama jabatan..." value="{{ request('nama') }}">
+                    </div>
+                    <div class="col-4">
+                        <select name="jenjang" class="form-select form-select-sm">
+                            <option value="">Semua Jenjang</option>
+                            @foreach ($jenjangOptions as $code => $label)
+                                <option value="{{ $code }}" {{ request('jenjang') === $code ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-1 d-flex gap-1">
+                        <button class="btn btn-osdmrb btn-sm flex-fill" title="Terapkan"><i class="bi bi-search"></i></button>
+                        <a href="{{ route('modules.analisis-jabatan') }}" class="btn btn-outline-secondary btn-sm" title="Reset"><i class="bi bi-x-lg"></i></a>
+                    </div>
+                </div>
+            </form>
+            <br>
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width:44px">No</th>
                             <th>Kode</th>
                             <th>Nama Jabatan</th>
                             <th>Jenjang</th>
@@ -72,6 +95,7 @@
                     <tbody>
                         @forelse ($positions as $position)
                             <tr>
+                                <td class="text-center text-muted">{{ $positions->firstItem() + $loop->iteration - 1 }}</td>
                                 <td><code>{{ $position->code }}</code></td>
                                 <td class="fw-semibold">{{ $position->name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $position->jobLevel?->name ?? '-' }}</span></td>
@@ -92,10 +116,14 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">Belum ada data jabatan fungsional.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada jabatan fungsional yang cocok dengan filter (jabatan kosong tidak ditampilkan).</td></tr>
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+
+            <div class="mt-3 px-3 pb-2">
+                {{ $positions->links() }}
             </div>
         </div>
     </div>

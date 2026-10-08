@@ -37,7 +37,7 @@ class MasterDataController extends Controller
 
         /* Koleksi LENGKAP (tanpa pagination) untuk kebutuhan dropdown
            & pilihan form di seluruh tab. */
-        $allUnits = Unit::orderBy('level')->orderBy('name')->get();
+        $allUnits = Unit::orderBy('level')->ordered()->get();
         $allPositionTypes = PositionType::orderBy('name')->get();
         $allJobLevels = JobLevel::orderBy('sort_order')->get();
 
@@ -66,7 +66,7 @@ class MasterDataController extends Controller
                 })
                 ->when(! empty($unitFilters['unit_level']), fn ($q) => $q->where('level', $unitFilters['unit_level']))
                 ->when(! empty($unitFilters['unit_parent']), fn ($q) => $q->where('parent_id', (int) $unitFilters['unit_parent']))
-                ->orderBy('level')->orderBy('name')
+                ->orderBy('level')->ordered()
                 ->paginate(10, ['*'], 'pageUnits')
                 ->appends(['tab' => 'units'] + $unitFilters),
             'educationLevels' => EducationLevel::query()

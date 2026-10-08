@@ -299,6 +299,7 @@ class LeaveRequestController extends Controller implements HasMiddleware
      * Query pengajuan cuti dengan filter (dipakai index).
      * Jenis cuti & status mendukung pilihan LEBIH DARI SATU (checklist)
      * serta tautan lama satu nilai (?status=PENDING).
+     * Catatan 30 Sept 2026: pencarian hanya untuk Admin Bagian & Super Admin.
      */
     private function filteredQuery(Request $request)
     {
@@ -306,12 +307,14 @@ class LeaveRequestController extends Controller implements HasMiddleware
 
         $asArray = fn ($value) => collect(is_array($value) ? $value : ($value === null || $value === '' ? [] : [$value]))->filter()->values();
 
+        $canSearch = $user->isAdmin() || $user->isSuperAdmin();
+
         return LeaveRequest::query()
             ->with(['employee.employmentStatus', 'verifier', 'approver'])
             ->when(! $user->isPrivileged(), fn ($q) => $q->where('employee_id', $user->employee_id))
             ->when($asArray($request->status)->isNotEmpty(), fn ($q) => $q->whereIn('status', $asArray($request->status)))
             ->when($asArray($request->type)->isNotEmpty(), fn ($q) => $q->whereIn('type', $asArray($request->type)))
-            ->when($request->search, fn ($q, $v) => $q->where(fn ($w) => $w
+            ->when($canSearch && $request->search, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('reason', 'like', "%{$v}%")
                 ->orWhereHas('employee', fn ($e) => $e->where('name', 'like', "%{$v}%"))));
     }

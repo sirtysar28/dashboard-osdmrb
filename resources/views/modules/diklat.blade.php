@@ -226,8 +226,8 @@
                                 @error('certificate_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label" for="diklatFile">Sertifikat (PDF / JPG, maks. 10 MB)</label>
-                                <input type="file" name="file" id="diklatFile" accept=".pdf,.jpg,.jpeg,.png"
+                                <label class="form-label" for="diklatFile">Sertifikat / Bukti Keikutsertaan <span class="text-danger">*</span> (PDF / JPG, maks. 10 MB)</label>
+                                <input type="file" name="file" id="diklatFile" accept=".pdf,.jpg,.jpeg,.png" required
                                        class="form-control @error('file') is-invalid @enderror">
                                 @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>

@@ -55,15 +55,38 @@
         <div class="table-card h-100">
             <div class="card-header-custom">
                 <h5 class="mb-0"><i class="bi bi-list-columns me-2"></i>Daftar Jabatan Struktural</h5>
-                <span class="badge bg-primary-subtle text-primary">{{ $totalJabatan }} jenis</span>
+                <span class="badge bg-primary-subtle text-primary">{{ $positions->total() }} jenis</span>
             </div>
 
+            {{-- Filter nama jabatan & jenjang (Catatan 30 Sept 2026) --}}
+            <form method="GET" class="px-3 pt-3">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="text" name="nama" class="form-control form-control-sm"
+                               placeholder="Cari nama jabatan..." value="{{ request('nama') }}">
+                    </div>
+                    <div class="col-4">
+                        <select name="jenjang" class="form-select form-select-sm">
+                            <option value="">Semua Jenjang</option>
+                            @foreach ($jenjangOptions as $code => $label)
+                                <option value="{{ $code }}" {{ request('jenjang') === $code ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-1 d-flex gap-1">
+                        <button class="btn btn-osdmrb btn-sm flex-fill" title="Terapkan"><i class="bi bi-search"></i></button>
+                        <a href="{{ route('modules.analisis-jabatan-struktural') }}" class="btn btn-outline-secondary btn-sm" title="Reset"><i class="bi bi-x-lg"></i></a>
+                    </div>
+                </div>
+            </form>
+            <br>
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width:44px">No</th>
                             <th>Kode</th>
-                            <th>Nama Jabatan</th>
+                            <th>Nama Jabatan Umum</th>
                             <th>Jenjang</th>
                             <th class="text-center">Pemangku</th>
                             <th>Status</th>
@@ -72,6 +95,7 @@
                     <tbody>
                         @forelse ($positions as $position)
                             <tr>
+                                <td class="text-center text-muted">{{ $positions->firstItem() + $loop->iteration - 1 }}</td>
                                 <td><code>{{ $position->code }}</code></td>
                                 <td class="fw-semibold">{{ $position->name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $position->jobLevel?->name ?? '-' }}</span></td>
@@ -92,10 +116,14 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">Belum ada data jabatan struktural.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada jabatan struktural yang cocok dengan filter.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+
+            <div class="mt-3 px-3 pb-2">
+                {{ $positions->links() }}
             </div>
         </div>
     </div>
@@ -150,7 +178,7 @@
             <ul class="small text-muted mb-0 ps-3">
                 <li class="mb-2">Formasi struktural kosong menjadi bahan pengisian jabatan melalui sistem merit &amp; manajemen talenta.</li>
                 <li class="mb-2">Kesenjangan beban kerja antar unit eselon II perlu ditinjau pada penyusunan formasi berikutnya.</li>
-                <li>Data pejabat diambil dari kolom eselon &amp; nama jabatan pegawai aktif serta riwayat jabatan aktif (Eselon I, II, III, IV) — tiap jabatan menampilkan pimpinannya.</li>
+                <li>Data pejabat diambil dari kolom eselon &amp; nama jabatan pegawai aktif serta riwayat jabatan aktif (Eselon I, II, III, IV) — tiap jabatan menampilkan pimpinannya dan dikelompokkan memakai <strong>nama jabatan umum</strong> (Kepala Biro, Direktur, dst.) sesuai daftar nama jabatan.</li>
                 <li>Eselon I: Sekretaris Jenderal, Direktur Jenderal, Inspektur Jenderal; Eselon II: Direktur, Sekretaris Ditjen, Kepala Pusat, Kepala Biro, Inspektur, Sekretaris Itjen, Kepala Balai Besar; Eselon III: Kepala Bagian, Kepala Balai; Eselon IV: Kepala Subbagian.</li>
             </ul>
         </div>

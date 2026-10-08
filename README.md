@@ -15,6 +15,7 @@ Format `MAJOR.FEATURE.PATCH` (env `APP_VERSION`, tampil di footer aplikasi):
 
 | Versi | Tanggal | Ringkasan |
 |---|---|---|
+| `1.0.2` | 7 Okt 2026 | **Catatan Masukan 30 Sept** — urutan unit kerja resmi (eselon I–III & balai, migrasi `sort_order`), card hasil filter dashboard dipindah ke atas, filter unit kerja "kosong", urutan riwayat pendidikan (P1=S1) + Tingkat terakhir pindah ke Data Personal CV, dropdown perguruan tinggi dengan kotak pencarian, analis jabatan fungsional/struktural/pelaksana (kolom Nomor, filter nama jabatan & jenjang, pagination, nama jabatan umum, data pelaksana dari data pegawai), menu SOP Kementerian → Dokumen Kepegawaian, riwayat diklat wajib upload sertifikat, pencarian cuti khusus Admin Bagian & Super Admin |
 | `1.0.1` | 28 Sep 2026 | Paritas filter ASN↔Direktori, analis jabatan fungsional/struktural mengenali semua jabatan + pemangku, kop form cuti format resmi |
 | `1.0.0` | ≤ 25 Sep 2026 | Baseline — seluruh update hingga 25 September 2026 (chat internal, analisis jabatan, formulir cuti, dedupe unit kerja, dll.) |
 
@@ -693,3 +694,82 @@ php artisan view:clear
 ```
 Lalu unggah berkas bank data baru melalui menu **Pegawai Non ASN → Import Excel**
 (kategori terdeteksi otomatis dari nama berkas/judul sheet).
+
+---
+
+## 🚀 Update 7 Oktober 2026 (v1.0.2) — Catatan Masukan 30 Sept 2026
+
+> Butir 14 (layanan kepegawaian baru: SLSKS, Tugas Belajar, Uji Kompetensi, KGB,
+> Kenaikan Pangkat, Tunjangan Keluarga) **belum dikerjakan** menunggu instruksi lanjut.
+> Butir 3 (import Non ASN format baru) sudah selesai pada update 2 Okt.
+
+### 1. Urutan unit kerja sesuai struktur resmi kementerian
+Kolom baru `units.sort_order` (migrasi `2026_10_07_000001`) mengikuti lampiran
+**"urutan jabatan.xlsx"**:
+- Eselon I: Setjen → Ditjen Pengembangan Ekonomi & Pemberdayaan Masyarakat →
+  Ditjen Pembangunan & Pengembangan Kawasan → Itjen.
+- Biro/pusat Setjen: Perencanaan-Kerjasama-Humas → Organisasi-SDM-RB → Umum &
+  Pengadaan → Keuangan & BMN → Hukum → Pusat Strategi Kebijakan → Pusat
+  Pengembangan SDM → Pusat Data & Informasi.
+- Sekretariat/direktorat tiap Ditjen, Sekretariat Itjen & Inspektorat I–II, bagian
+  Eselon III, lalu balai (Balai Besar Yogyakarta, Pekanbaru, Banjarmasin, Denpasar).
+
+Seluruh daftar pilihan unit (filter dashboard, data pegawai, direktori, master data,
+arsip, struktur organisasi, export) kini memakai urutan tersebut (`Unit::ordered()`).
+
+### 2. Card hasil filter dashboard dipindah ke urutan atas
+Tabel **"Hasil Filter — Data Pegawai"** kini berada **sebelum** kartu-kartu Kenaikan
+Pangkat dan Kenaikan Gaji Berkala (KGB).
+
+### 4. Filter unit kerja "kosong" pada Data Pegawai ASN
+Opsi **"— Unit Kerja belum diisi (kosong) —"** pada filter unit kerja (menu Data
+Pegawai ASN & Direktori) menampilkan pegawai yang `unit_id`-nya masih kosong —
+memudahkan Admin Pegawai melengkapi data secara mandiri.
+
+### 5 & 7. Riwayat pendidikan: Pendidikan 1 = S1, tanpa "Tingkat"
+- Migrasi `2026_10_07_000002` merapikan data lama: jenjang terendah (S1/D4/D3) ke
+  Pendidikan 1, disusul S2, lalu S3.
+- Label form menjadi "Pendidikan 1 (S1)", "Pendidikan 2 (S2)", "Pendidikan 3 (S3)";
+  baris "Tingkat" di halaman detail pegawai dihapus.
+- CV: bagian C. Riwayat Pendidikan langsung dimulai dari Pendidikan 1; **Tingkat
+  Pendidikan Terakhir** dipindah ke bagian A. Data Personal.
+
+### 6. Pemilihan perguruan tinggi dengan kotak pencarian
+Komponen baru `<x-search-select>` (dropdown + kotak cari) menggantikan dropdown
+kampus biasa pada form pegawai — ketik kata kunci, nama perguruan tinggi yang cocok
+langsung tersaring. Opsi "Isi Manual" tetap tersedia.
+
+### 8–10. Analis jabatan fungsional / struktural / pelaksana
+Ketiga halaman kini seragam:
+- **Kolom Nomor** paling awal pada tabel.
+- **Filter nama jabatan & jenjang** + **pagination** (15 baris/halaman).
+- Fungsional: jabatan yang kosong (tanpa pemangku) **tidak ditampilkan**.
+- Struktural: dikelompokkan memakai **nama jabatan umum** ("Kepala Biro
+  Organisasi, …" → "Kepala Biro"; `JabatanSyncService::genericJabatan()`).
+- Pelaksana: pemangku dihitung **langsung dari nama jabatan pada data pegawai**
+  (sebelumnya dari relasi riwayat jabatan sehingga selalu kosong).
+
+### 11. Menu "SOP Kementerian" → "Dokumen Kepegawaian"
+Label sidebar, judul halaman, tombol, modal unggah, notifikasi email, dan pesan
+sukses/error semuanya memakai nama baru (route & struktur data tidak berubah).
+
+### 12. Riwayat diklat wajib upload dokumen
+Pengisian riwayat diklat/seminar/pelatihan (modul Diklat & profil pegawai) kini
+**mewajibkan** unggah dokumen/sertifikat bukti keikutsertaan (PDF/JPG maks 10 MB).
+Pengecekan hak akses dilakukan **sebelum** validasi.
+
+### 13. Pencarian cuti hanya untuk Admin Bagian & Super Admin
+Kolom pencarian pada menu Pengajuan Cuti disembunyikan dari akun pegawai (pegawai
+tetap hanya melihat pengajuan miliknya); parameter `search` juga diabaikan di sisi
+server untuk akun non-admin.
+
+### Deployment update ini
+```bash
+composer install --no-dev        # tanpa dependency baru
+php artisan migrate --force      # 2 migrasi baru (sort_order unit + urutan pendidikan)
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
+
+Smoke test: `tests/Feature/UpdateSeptember30Test.php` (13 test).

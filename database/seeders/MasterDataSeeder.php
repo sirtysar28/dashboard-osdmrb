@@ -10,6 +10,7 @@ use App\Models\PositionType;
 use App\Models\Rank;
 use App\Models\Unit;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Seeder master data — IDEMPOTEN (aman dijalankan berulang kali).
@@ -20,72 +21,87 @@ class MasterDataSeeder extends Seeder
 {
     public function run(): void
     {
+        // sort_order hanya diisi bila kolomnya sudah ada (migrasi urutan unit
+        // 30 Sept 2026) — seeder bisa juga dipanggil migrasi lama yang berjalan
+        // sebelum kolom tersebut dibuat
+        $hasSortOrder = Schema::hasColumn('units', 'sort_order');
+        $unitAttrs = fn (string $name, string $level, ?int $parentId, int $order) => array_filter([
+            'name' => $name,
+            'level' => $level,
+            'parent_id' => $parentId,
+            $hasSortOrder ? 'sort_order' : null => $hasSortOrder ? $order : null,
+        ], fn ($v) => $v !== null);
+
         /* ================= UNIT KERJA =================
            Mengacu daftar unit kerja resmi Kementerian Transmigrasi
-           (SOTK): Eselon I (Setjen, Itjen, 2 Ditjen) -> Eselon II
-           (biro/pusat/direktorat/staf ahli) -> Balai (UPT pelatihan). */
+           (SOTK): Eselon I (Setjen, 2 Ditjen, Itjen) -> Eselon II
+           (biro/pusat/direktorat/staf ahli) -> Balai (UPT pelatihan).
+           sort_order = urutan resmi lampiran "urutan jabatan.xlsx"
+           (Catatan Masukan 30 Sept 2026): Setjen -> Ditjen Ekbang ->
+           Ditjen Kawasan -> Itjen; biro/pusat Setjen: PKHM, OSDMRB,
+           ULP, KBMN, Hukum, Pusat STK, PSDM, Datin. */
 
         $kementerian = Unit::updateOrCreate(
             ['code' => 'KEMEN'],
-            ['name' => 'Kementerian Transmigrasi', 'level' => 'KEMENTERIAN'],
+            $unitAttrs('Kementerian Transmigrasi', 'KEMENTERIAN', null, 1),
         );
 
         $es1 = collect([
-            ['SETJEN', 'Sekretariat Jenderal'],
-            ['ITJEN', 'Inspektorat Jenderal'],
-            ['DJ-EKBANG', 'Direktorat Jenderal Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi'],
-            ['DJ-KAWASAN', 'Direktorat Jenderal Pembangunan dan Pengembangan Kawasan Transmigrasi'],
-        ])->mapWithKeys(function (array $row) use ($kementerian) {
-            [$code, $name] = $row;
+            ['SETJEN', 'Sekretariat Jenderal', 10],
+            ['DJ-EKBANG', 'Direktorat Jenderal Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi', 20],
+            ['DJ-KAWASAN', 'Direktorat Jenderal Pembangunan dan Pengembangan Kawasan Transmigrasi', 30],
+            ['ITJEN', 'Inspektorat Jenderal', 40],
+        ])->mapWithKeys(function (array $row) use ($kementerian, $unitAttrs) {
+            [$code, $name, $order] = $row;
 
             return [$code => Unit::updateOrCreate(
                 ['code' => $code],
-                ['name' => $name, 'level' => 'ES_I', 'parent_id' => $kementerian->id],
+                $unitAttrs($name, 'ES_I', $kementerian->id, $order),
             )];
         });
 
         // Eselon II di bawah masing-masing unit Eselon I
         $es2Map = [
             'SETJEN' => [
-                ['BIRO-PKHM', 'Biro Perencanaan, Kerja Sama, dan Hubungan Masyarakat'],
-                ['BIRO-KBMN', 'Biro Keuangan dan Barang Milik Negara'],
-                ['OSDMRB', 'Biro Organisasi, Sumber Daya Manusia, dan Reformasi Birokrasi'],
-                ['BIRO-HUKUM', 'Biro Hukum'],
-                ['BIRO-ULP', 'Biro Umum dan Layanan Pengadaan'],
-                ['PUS-STK', 'Pusat Strategi Kebijakan Transmigrasi'],
-                ['PUS-DATIN', 'Pusat Data dan Informasi Transmigrasi'],
-                ['PUS-PSDM', 'Pusat Pengembangan Sumber Daya Manusia'],
-                ['STAF-AH-PKLH', 'Staf Ahli Bidang Pembangunan, Kemasyarakatan, dan Lingkungan Hidup'],
-                ['STAF-AH-POLHUK', 'Staf Ahli Bidang Politik dan Hukum Kementerian Transmigrasi'],
+                ['BIRO-PKHM', 'Biro Perencanaan, Kerja Sama, dan Hubungan Masyarakat', 11],
+                ['OSDMRB', 'Biro Organisasi, Sumber Daya Manusia, dan Reformasi Birokrasi', 12],
+                ['BIRO-ULP', 'Biro Umum dan Layanan Pengadaan', 13],
+                ['BIRO-KBMN', 'Biro Keuangan dan Barang Milik Negara', 14],
+                ['BIRO-HUKUM', 'Biro Hukum', 15],
+                ['PUS-STK', 'Pusat Strategi Kebijakan Transmigrasi', 16],
+                ['PUS-PSDM', 'Pusat Pengembangan Sumber Daya Manusia', 17],
+                ['PUS-DATIN', 'Pusat Data dan Informasi Transmigrasi', 18],
+                ['STAF-AH-PKLH', 'Staf Ahli Bidang Pembangunan, Kemasyarakatan, dan Lingkungan Hidup', 19],
+                ['STAF-AH-POLHUK', 'Staf Ahli Bidang Politik dan Hukum Kementerian Transmigrasi', 20],
             ],
             'ITJEN' => [
-                ['SET-ITJEN', 'Sekretariat Inspektorat Jenderal'],
-                ['ITJEN-I', 'Inspektorat I'],
-                ['ITJEN-II', 'Inspektorat II'],
+                ['SET-ITJEN', 'Sekretariat Inspektorat Jenderal', 41],
+                ['ITJEN-I', 'Inspektorat I', 42],
+                ['ITJEN-II', 'Inspektorat II', 43],
             ],
             'DJ-EKBANG' => [
-                ['SET-DJEKBANG', 'Sekretariat Direktorat Jenderal Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi'],
-                ['DIT-PTPE', 'Direktorat Perencanaan Teknis Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi'],
-                ['DIT-PKET', 'Direktorat Pengembangan Kelembagaan Ekonomi Transmigrasi'],
-                ['DIT-PPUT', 'Direktorat Pengembangan Produk Unggulan Transmigrasi'],
-                ['DIT-PPPU', 'Direktorat Promosi dan Pemasaran Produk Unggulan Transmigrasi'],
-                ['DIT-PMT', 'Direktorat Pemberdayaan Masyarakat Transmigrasi'],
+                ['SET-DJEKBANG', 'Sekretariat Direktorat Jenderal Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi', 21],
+                ['DIT-PTPE', 'Direktorat Perencanaan Teknis Pengembangan Ekonomi dan Pemberdayaan Masyarakat Transmigrasi', 22],
+                ['DIT-PKET', 'Direktorat Pengembangan Kelembagaan Ekonomi Transmigrasi', 23],
+                ['DIT-PPUT', 'Direktorat Pengembangan Produk Unggulan Transmigrasi', 24],
+                ['DIT-PPPU', 'Direktorat Promosi dan Pemasaran Produk Unggulan Transmigrasi', 25],
+                ['DIT-PMT', 'Direktorat Pemberdayaan Masyarakat Transmigrasi', 26],
             ],
             'DJ-KAWASAN' => [
-                ['SET-DJKWSN', 'Sekretariat Direktorat Jenderal Pembangunan dan Pengembangan Kawasan Transmigrasi'],
-                ['DIT-PPK', 'Direktorat Perencanaan Perwujudan Kawasan Transmigrasi'],
-                ['DIT-PBKT', 'Direktorat Pembangunan Kawasan Transmigrasi'],
-                ['DIT-FPPK', 'Direktorat Fasilitasi Penataan Persebaran Penduduk Di Kawasan Transmigrasi'],
-                ['DIT-PSPTS', 'Direktorat Pengembangan Satuan Permukiman dan Pusat Satuan Kawasan Pengembangan'],
-                ['DIT-PKT', 'Direktorat Pengembangan Kawasan Transmigrasi'],
+                ['SET-DJKWSN', 'Sekretariat Direktorat Jenderal Pembangunan dan Pengembangan Kawasan Transmigrasi', 31],
+                ['DIT-PPK', 'Direktorat Perencanaan Perwujudan Kawasan Transmigrasi', 32],
+                ['DIT-PBKT', 'Direktorat Pembangunan Kawasan Transmigrasi', 33],
+                ['DIT-FPPK', 'Direktorat Fasilitasi Penataan Persebaran Penduduk Di Kawasan Transmigrasi', 34],
+                ['DIT-PSPTS', 'Direktorat Pengembangan Satuan Permukiman dan Pusat Satuan Kawasan Pengembangan', 35],
+                ['DIT-PKT', 'Direktorat Pengembangan Kawasan Transmigrasi', 36],
             ],
         ];
 
         foreach ($es2Map as $parentCode => $units) {
-            foreach ($units as [$code, $name]) {
+            foreach ($units as [$code, $name, $order]) {
                 Unit::updateOrCreate(
                     ['code' => $code],
-                    ['name' => $name, 'level' => 'ES_II', 'parent_id' => $es1[$parentCode]->id],
+                    $unitAttrs($name, 'ES_II', $es1[$parentCode]->id, $order),
                 );
             }
         }
@@ -95,17 +111,18 @@ class MasterDataSeeder extends Seeder
             ?? Unit::where('code', 'OSDMRB')->first();
 
         foreach ([
-            ['BAG-ORG', 'Bagian Organisasi dan Tata Laksana'],
-            ['BAG-SDM', 'Bagian Sumber Daya Manusia dan Diklat'],
-            ['BAG-RB', 'Bagian Reformasi Birokrasi dan Pengelolaan Kinerja'],
-        ] as [$code, $name]) {
+            ['BAG-ORG', 'Bagian Organisasi dan Tata Laksana', 121],
+            ['BAG-SDM', 'Bagian Sumber Daya Manusia dan Diklat', 122],
+            ['BAG-RB', 'Bagian Reformasi Birokrasi dan Pengelolaan Kinerja', 123],
+        ] as [$code, $name, $order]) {
             Unit::updateOrCreate(
                 ['code' => $code],
-                ['name' => $name, 'level' => 'ES_III', 'parent_id' => $biro->id],
+                $unitAttrs($name, 'ES_III', $biro->id, $order),
             );
         }
 
         // Balai / UPT pelatihan di bawah Sekretariat Jenderal
+        // (urutan resmi: Balai Besar Yogyakarta, Pekanbaru, Banjarmasin, Denpasar)
         foreach ([
             'Balai Besar Pelatihan dan Pemberdayaan Masyarakat Transmigrasi Yogyakarta',
             'Balai Pelatihan dan Pemberdayaan Masyarakat Transmigrasi Pekanbaru',
@@ -114,7 +131,7 @@ class MasterDataSeeder extends Seeder
         ] as $i => $name) {
             Unit::updateOrCreate(
                 ['code' => 'BALAI-0'.($i + 1)],
-                ['name' => $name, 'level' => 'BALAI', 'parent_id' => $es1['SETJEN']->id],
+                $unitAttrs($name, 'BALAI', $es1['SETJEN']->id, 51 + $i),
             );
         }
 

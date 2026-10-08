@@ -41,7 +41,7 @@ class EmployeeController extends Controller
         return view('employees.index', [
             'employees' => $employees,
             'statusList' => EmploymentStatus::orderBy('name')->get(),
-            'unitList' => Unit::orderBy('name')->get(),
+            'unitList' => Unit::ordered()->get(),
             'filters' => $this->normalizeFilters($request),
             'nonAsn' => false,
         ]);
@@ -73,7 +73,7 @@ class EmployeeController extends Controller
                 }
             })
             ->when($statusValues->isNotEmpty(), fn ($q) => $this->applyEffectiveStatusFilter($q, $statusValues))
-            ->when($unitValues->isNotEmpty(), fn ($q) => $q->whereIn('unit_id', $unitValues->map(fn ($v) => (int) $v)))
+            ->when($unitValues->isNotEmpty(), fn ($q) => $this->applyUnitFilter($q, $unitValues))
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -81,7 +81,7 @@ class EmployeeController extends Controller
         return view('employees.directory', [
             'employees' => $employees,
             'statusList' => EmploymentStatus::orderBy('name')->get(),
-            'unitList' => Unit::orderBy('name')->get(),
+            'unitList' => Unit::ordered()->get(),
             'filters' => $request->only(['search', 'jenis', 'status', 'unit']),
         ]);
     }
@@ -128,7 +128,7 @@ class EmployeeController extends Controller
         return view('employees.non-asn-form', [
             'employee' => new Employee(['is_active' => true]),
             'categories' => $this->nonAsnCategories(),
-            'unitList' => Unit::where('level', '>', 1)->orderBy('name')->get(),
+            'unitList' => Unit::where('level', '>', 1)->ordered()->get(),
         ]);
     }
 
@@ -163,7 +163,7 @@ class EmployeeController extends Controller
         return view('employees.non-asn-form', [
             'employee' => $employee,
             'categories' => $this->nonAsnCategories(),
-            'unitList' => Unit::where('level', '>', 1)->orderBy('name')->get(),
+            'unitList' => Unit::where('level', '>', 1)->ordered()->get(),
         ]);
     }
 
@@ -279,7 +279,7 @@ class EmployeeController extends Controller
             'rankList' => Rank::orderBy('sort_order')->get(),
             'educationList' => EducationLevel::orderBy('sort_order')->get(),
             'campusList' => Campus::orderBy('sort_order')->orderBy('name')->get(),
-            'unitList' => Unit::orderBy('level')->orderBy('name')->get(),
+            'unitList' => Unit::orderBy('level')->ordered()->get(),
             'positionList' => Position::with('positionType')->orderBy('name')->get(),
             'educationDefaults' => $this->educationFieldDefaults(new Employee(), null),
         ]);
@@ -382,7 +382,7 @@ class EmployeeController extends Controller
             'rankList' => Rank::orderBy('sort_order')->get(),
             'educationList' => EducationLevel::orderBy('sort_order')->get(),
             'campusList' => $campusList,
-            'unitList' => Unit::orderBy('level')->orderBy('name')->get(),
+            'unitList' => Unit::orderBy('level')->ordered()->get(),
             'positionList' => Position::with('positionType')->orderBy('name')->get(),
             'educationDefaults' => $this->educationFieldDefaults($employee, $campusList),
         ]);
@@ -680,6 +680,34 @@ class EmployeeController extends Controller
      * pegawai berstatus ASN dengan TMT ASN KOSONG dihitung CPNS
      * (catatan rapat 25 Sept 2026); filter ASN hanya yang TMT terisi.
      */
+    /**
+     * Terapkan filter unit kerja multi-select — mendukung opsi khusus "kosong"
+     * (pegawai yang unit kerjanya belum diisi) agar mudah dicari lalu dilengkapi
+     * secara mandiri oleh Admin Pegawai (Catatan Masukan 30 Sept 2026).
+     */
+    private function applyUnitFilter($query, $unitValues)
+    {
+        $unitValues = collect($unitValues)->filter()->values();
+
+        $unitIds = $unitValues
+            ->reject(fn ($v) => $v === 'kosong')
+            ->filter(fn ($v) => ctype_digit((string) $v))
+            ->map(fn ($v) => (int) $v)
+            ->values();
+
+        $wantsKosong = $unitValues->contains('kosong');
+
+        return $query->where(function ($w) use ($unitIds, $wantsKosong) {
+            if ($unitIds->isNotEmpty()) {
+                $w->whereIn('unit_id', $unitIds);
+            }
+
+            if ($wantsKosong) {
+                $w->orWhereNull('unit_id');
+            }
+        });
+    }
+
     private function applyEffectiveStatusFilter($query, $statusValues)
     {
         $statusValues = collect($statusValues)->filter()->values();
@@ -746,8 +774,9 @@ class EmployeeController extends Controller
             // status kepegawaian — MULTI-SELECT (mis. ASN + PPPK sekaligus) dgn
             // aturan status efektif (dipakai bersama direktori pegawai)
             ->when($statusValues->isNotEmpty(), fn ($q) => $this->applyEffectiveStatusFilter($q, $statusValues))
-            // unit kerja — MULTI-SELECT
-            ->when($unitValues->isNotEmpty(), fn ($q) => $q->whereIn('unit_id', $unitValues->map(fn ($v) => (int) $v)))
+            // unit kerja — MULTI-SELECT; opsi khusus "kosong" = pegawai yang
+            // unit kerjanya belum diisi (Catatan Masukan 30 Sept 2026)
+            ->when($unitValues->isNotEmpty(), fn ($q) => $this->applyUnitFilter($q, $unitValues))
             ->when($request->jenis === 'struktural', fn ($q) => $q->whereNotNull('eselon'))
             ->when($request->jenis === 'fungsional', fn ($q) => $q->whereNotNull('functional_level')
                 ->where('functional_level', 'not like', '%Umum%'))

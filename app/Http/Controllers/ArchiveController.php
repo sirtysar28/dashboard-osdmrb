@@ -72,7 +72,7 @@ class ArchiveController extends Controller
             'archive' => new Archive(['document_date' => now(), 'year' => now()->year]),
             'categories' => ArchiveCategory::orderBy('code')->get(),
             'employees' => Employee::orderBy('name')->limit(300)->get(),
-            'units' => Unit::orderBy('name')->get(),
+            'units' => Unit::ordered()->get(),
         ]);
     }
 
@@ -118,7 +118,7 @@ class ArchiveController extends Controller
             'archive' => $archive,
             'categories' => ArchiveCategory::orderBy('code')->get(),
             'employees' => Employee::orderBy('name')->limit(300)->get(),
-            'units' => Unit::orderBy('name')->get(),
+            'units' => Unit::ordered()->get(),
         ]);
     }
 

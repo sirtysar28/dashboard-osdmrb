@@ -33,7 +33,7 @@
         <div class="col-lg-3 col-md-6">
             <label>Unit Kerja <small class="text-muted">(bisa pilih &gt;1)</small></label>
             <x-multi-select name="unit" placeholder="Semua Unit Kerja"
-                            :options="$unitList->mapWithKeys(fn ($u) => [$u->id => $u->name])->all()"
+                            :options="['kosong' => '— Unit Kerja belum diisi (kosong) —'] + $unitList->mapWithKeys(fn ($u) => [$u->id => $u->name])->all()"
                             :selected="$unitFilter" />
         </div>
         <div class="col-lg-12 d-flex justify-content-end gap-2">

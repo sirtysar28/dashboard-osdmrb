@@ -81,7 +81,7 @@ class MasterDataExporter
         return [
             [
                 'title' => 'Unit Kerja',
-                'query' => Unit::query()->with('parent')->orderBy('level')->orderBy('name'),
+                'query' => Unit::query()->with('parent')->orderBy('level')->orderBy('sort_order')->orderBy('name'),
                 'columns' => ['Kode', 'Nama', 'Level', 'Induk', 'Alamat'],
                 'map' => fn (Unit $row) => [
                     $row->code,

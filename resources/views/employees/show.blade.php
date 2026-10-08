@@ -72,10 +72,45 @@
         <div class="detail-card">
             <h5><i class="bi bi-mortarboard me-2"></i>Pendidikan</h5>
             <table class="table table-sm small mb-0">
-                <tr><td class="text-muted w-40">Tingkat</td><td>{{ $employee->education?->name ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Pendidikan 1</td><td>{{ $employee->education_1 ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Pendidikan 2</td><td>{{ $employee->education_2 ?? '-' }}</td></tr>
-                <tr><td class="text-muted">Pendidikan 3</td><td>{{ $employee->education_3 ?? '-' }}</td></tr>
+                <!--<tr><td class="text-muted w-40">Tingkat</td><td>{{ $employee->education?->name ?? '-' }}</td></tr>-->
+                
+                <!--<tr><td class="text-muted">Pendidikan 1</td><td>{{ $employee->education_2 ?? '-' }}</td></tr>-->
+                <!--<tr><td class="text-muted">Pendidikan 2</td><td>{{ $employee->education_1 ?? '-' }}</td></tr>-->
+                <!--<tr><td class="text-muted">Pendidikan 3</td><td>{{ $employee->education_3 ?? '-' }}</td></tr>-->
+                <tr>
+                    <td class="text-muted w-40">Tingkat</td>
+                    <td>{{ $employee->education?->name ?? '-' }}</td>
+                </tr>
+                
+                @if ($employee->education?->name === 'S3 / Doktor' or $employee->education?->name === 'S1 / Sarjana'  )
+                    <tr>
+                        <td class="text-muted">Pendidikan S1</td>
+                        <td>{{ $employee->education_1 ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Pendidikan S2</td>
+                        <td>{{ $employee->education_2 ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Pendidikan S3</td>
+                        <td>{{ $employee->education_3 ?? '-' }}</td>
+                    </tr>
+                @elseif ($employee->education?->name === 'S1 / Sarjana')
+                    
+                @else
+                    <tr>
+                        <td class="text-muted">Pendidikan 1</td>
+                        <td>{{ $employee->education_2 ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Pendidikan 2</td>
+                        <td>{{ $employee->education_1 ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Pendidikan 3</td>
+                        <td>{{ $employee->education_3 ?? '-' }}</td>
+                    </tr>
+                @endif
             </table>
         </div>
     </div>
@@ -262,8 +297,9 @@
                                 <input type="number" name="hours" class="form-control form-control-sm" min="0">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small">Sertifikat (PDF/JPG maks 10MB)</label>
-                                <input type="file" name="file" class="form-control form-control-sm">
+                                <label class="form-label small">Sertifikat / Bukti Keikutsertaan <span class="text-danger">*</span> (PDF/JPG maks 10MB)</label>
+                                <input type="file" name="file" class="form-control form-control-sm @error('file') is-invalid @enderror" required accept=".pdf,.jpg,.jpeg,.png">
+                                @error('file')<div class="invalid-feedback d-block small">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12 text-end">
                                 <button class="btn btn-sm btn-osdmrb"><i class="bi bi-save"></i> Simpan Riwayat</button>

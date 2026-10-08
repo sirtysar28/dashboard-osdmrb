@@ -83,6 +83,47 @@ class JabatanSyncService
         };
     }
 
+    /**
+     * NAMA JABATAN UMUM dari nama jabatan lengkap — mis. "Kepala Biro
+     * Organisasi, Sumber Daya Manusia dan Reformasi Birokrasi" → "Kepala Biro"
+     * (Catatan Masukan 30 Sept 2026 — analis jabatan struktural memakai nama
+     * jabatan umum, bukan nama jabatan lengkapnya).
+     */
+    public static function genericJabatan(?string $positionName): string
+    {
+        $normalized = self::normalize($positionName);
+
+        if ($normalized === '') {
+            return trim((string) $positionName);
+        }
+
+        // urutan penting: awalan terpanjang diperiksa lebih dulu
+        $map = [
+            'SEKRETARIS INSPEKTUR JENDERAL' => 'Sekretaris Inspektorat Jenderal',
+            'SEKRETARIS DIREKTORAT JENDERAL' => 'Sekretaris Direktorat Jenderal',
+            'SEKRETARIS JENDERAL' => 'Sekretaris Jenderal',
+            'DIREKTUR JENDERAL' => 'Direktur Jenderal',
+            'INSPEKTUR JENDERAL' => 'Inspektur Jenderal',
+            'KEPALA BALAI BESAR' => 'Kepala Balai Besar',
+            'KEPALA BALAI' => 'Kepala Balai',
+            'KEPALA PUSAT' => 'Kepala Pusat',
+            'KEPALA BIRO' => 'Kepala Biro',
+            'KEPALA BAGIAN' => 'Kepala Bagian',
+            'KEPALA SUBBAGIAN' => 'Kepala Subbagian',
+            'KEPALA SUB BAGIAN' => 'Kepala Subbagian',
+            'DIREKTUR' => 'Direktur',
+            'INSPEKTUR' => 'Inspektur',
+        ];
+
+        foreach ($map as $prefix => $generic) {
+            if (str_starts_with($normalized, $prefix)) {
+                return $generic;
+            }
+        }
+
+        return trim((string) $positionName);
+    }
+
     /* ================= SINKRONISASI ================= */
 
     /**

@@ -11,6 +11,7 @@ use App\Models\Sop;
 use App\Models\Unit;
 use App\Services\JabatanSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -30,8 +31,12 @@ class ModuleController extends Controller
 {
     /* =========================================================
        1. ANALISIS JABATAN FUNGSIONAL
+       Catatan Masukan 30 Sept 2026:
+       - jabatan yang kosong (tanpa pemangku) tidak ditampilkan;
+       - kolom Nomor paling awal pada tabel;
+       - filter nama jabatan & jenjang + pagination.
        ========================================================= */
-    public function analisisJabatan(): View
+    public function analisisJabatan(Request $request): View
     {
         // sinkronkan nama jabatan dari data pegawai agar SEMUA jenis
         // jabatan fungsional teridentifikasi (catatan 28 Sept 2026)
@@ -39,7 +44,12 @@ class ModuleController extends Controller
 
         // Jabatan fungsional tertentu + pemangku dihitung dari NAMA JABATAN
         // pada data pegawai aktif (bukan hanya relasi riwayat jabatan).
-        $positions = $this->buildPositionAnalysis('FUNGSIONAL');
+        $all = $this->buildPositionAnalysis('FUNGSIONAL');
+
+        // jabatan kosong TIDAK ditampilkan (butir 8 Catatan 30 Sept 2026)
+        $positions = $this->filterPositions($all, $request)
+            ->filter(fn ($p) => $p->holders_count > 0)
+            ->values();
 
         // Distribusi pemangku per jenjang fungsional (dari data pegawai ASN aktif)
         $jenjang = Employee::query()
@@ -51,24 +61,35 @@ class ModuleController extends Controller
             ->orderByDesc('total')
             ->get();
 
-        $totalJabatan = $positions->count();
-        $totalPemangku = $positions->sum('holders_count');
-        $jabatanKosong = $positions->where('holders_count', 0)->count();
+        $totalJabatan = $all->count();
+        $totalPemangku = $all->sum('holders_count');
+        $jabatanKosong = $all->where('holders_count', 0)->count();
+
+        $positions = $this->paginateCollection($positions, 15, $request);
+
+        $jenjangOptions = $this->jenjangOptions(['AHLI_PERTAMA', 'AHLI_MUDA', 'AHLI_MADYA', 'AHLI_UTAMA', 'PENYELIA', 'TERAMPIL']);
 
         return view('modules.analisis-jabatan', compact(
-            'positions', 'jenjang', 'totalJabatan', 'totalPemangku', 'jabatanKosong'
+            'positions', 'jenjang', 'totalJabatan', 'totalPemangku', 'jabatanKosong', 'jenjangOptions'
         ));
     }
 
     /* =========================================================
        1b. ANALISIS JABATAN STRUKTURAL
+       Catatan Masukan 30 Sept 2026: memakai NAMA JABATAN UMUM
+       (Kepala Biro, Direktur, dst.) — bukan nama jabatan lengkap —
+       + kolom Nomor, filter nama jabatan & jenjang, dan pagination.
        ========================================================= */
-    public function analisisJabatanStruktural(): View
+    public function analisisJabatanStruktural(Request $request): View
     {
         // sinkronkan agar tiap jabatan struktural menampilkan pimpinannya
         $this->syncJabatan();
 
-        $positions = $this->buildPositionAnalysis('STRUKTURAL');
+        $all = $this->buildPositionAnalysis('STRUKTURAL', generic: true);
+
+        $positions = $this->paginateCollection(
+            $this->filterPositions($all, $request)->values(), 15, $request
+        );
 
         // Distribusi pejabat struktural per eselon (dari data pegawai ASN aktif)
         $eselonDist = Employee::query()
@@ -104,17 +125,19 @@ class ModuleController extends Controller
             ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total]);
 
         $totalPejabat = $eselonDist->sum('total');
-        $totalJabatan = $positions->count();
-        $totalPemangku = $positions->sum('holders_count');
-        $jabatanKosong = $positions->where('holders_count', 0)->count();
+        $totalJabatan = $all->count();
+        $totalPemangku = $all->sum('holders_count');
+        $jabatanKosong = $all->where('holders_count', 0)->count();
+
+        $jenjangOptions = $this->jenjangOptions(['ESELON_I', 'ESELON_II', 'ESELON_III', 'ESELON_IV']);
 
         return view('modules.analisis-jabatan-struktural', compact(
-            'positions', 'eselonDist', 'perUnit', 'totalPejabat', 'totalJabatan', 'totalPemangku', 'jabatanKosong'
+            'positions', 'eselonDist', 'perUnit', 'totalPejabat', 'totalJabatan', 'totalPemangku', 'jabatanKosong', 'jenjangOptions'
         ));
     }
 
     /* =========================================================
-       HELPER ANALISIS JABATAN (28 Sept 2026)
+       HELPER ANALISIS JABATAN (28 Sept 2026 + Catatan 30 Sept 2026)
        ========================================================= */
 
     /** Jalankan sinkronisasi master jabatan dari data pegawai (idempoten). */
@@ -127,6 +150,43 @@ class ModuleController extends Controller
         }
     }
 
+    /** Opsi filter jenjang (job level) berdasarkan kode. */
+    private function jenjangOptions(array $codes)
+    {
+        return JobLevel::whereIn('code', $codes)->orderBy('sort_order')->pluck('name', 'code');
+    }
+
+    /** Filter koleksi jabatan berdasarkan NAMA JABATAN & JENJANG (butir 8–10 Catatan 30 Sept 2026). */
+    private function filterPositions($positions, Request $request)
+    {
+        $nama = trim((string) $request->input('nama'));
+        $jenjang = trim((string) $request->input('jenjang'));
+
+        return $positions
+            ->when($nama !== '', fn ($c) => $c->filter(
+                fn ($p) => str_contains(mb_strtolower($p->name), mb_strtolower($nama))
+            ))
+            ->when($jenjang !== '', fn ($c) => $c->filter(
+                fn ($p) => ($p->jobLevel?->code ?? null) === $jenjang
+            ))
+            ->values();
+    }
+
+    /** Paginate koleksi (tabel jabatan — Catatan 30 Sept 2026). */
+    private function paginateCollection($items, int $perPage, Request $request): LengthAwarePaginator
+    {
+        $page = max(1, (int) $request->input('page', 1));
+        $items = $items->values();
+
+        return new LengthAwarePaginator(
+            $items->slice(($page - 1) * $perPage, $perPage)->values(),
+            $items->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+    }
+
     /**
      * Bangun daftar jabatan (master + data pegawai) beserta pemangkunya.
      *
@@ -135,13 +195,27 @@ class ModuleController extends Controller
      * masuk di data pegawai teridentifikasi dan tiap jabatan struktural
      * menampilkan pimpinannya (catatan 28 Sept 2026).
      *
+     * Catatan 30 Sept 2026: $generic = true mengelompokkan pemangku berdasar
+     * NAMA JABATAN UMUM ("Kepala Biro ..." → "Kepala Biro") untuk halaman
+     * analisis jabatan struktural.
+     *
      * @return \Illuminate\Support\Collection<int, Position>
      */
-    private function buildPositionAnalysis(string $typeCode)
+    private function buildPositionAnalysis(string $typeCode, bool $generic = false)
     {
         $master = Position::whereHas('positionType', fn ($q) => $q->where('code', $typeCode))
             ->with('jobLevel')
             ->get();
+
+        // mode nama umum: master hasil sinkronisasi 28 Sept yang memakai nama
+        // jabatan LENGKAP (mis. "Kepala Biro Organisasi...") dilipat ke bentuk
+        // umumnya — hanya master bernama umum yang ditampilkan sebagai baris
+        if ($generic) {
+            $master = $master->filter(
+                fn ($p) => JabatanSyncService::normalize(JabatanSyncService::genericJabatan($p->name))
+                    === JabatanSyncService::normalize($p->name)
+            );
+        }
 
         // pegawai ASN aktif sesuai jenis jabatan yang dianalisis
         $employees = Employee::query()
@@ -158,8 +232,11 @@ class ModuleController extends Controller
                     : (! $struktural && JabatanSyncService::looksFungsional($e->position_name, $e->functional_level));
             });
 
-        // kelompokkan berdasarkan nama jabatan (normal: upper + spasi rapat)
-        $groups = $employees->groupBy(fn ($e) => JabatanSyncService::normalize($e->position_name));
+        // kelompokkan berdasarkan nama jabatan (normal: upper + spasi rapat);
+        // mode generic memakai nama jabatan umum (butir 9 Catatan 30 Sept 2026)
+        $groups = $employees->groupBy(fn ($e) => JabatanSyncService::normalize(
+            $generic ? JabatanSyncService::genericJabatan($e->position_name) : $e->position_name
+        ));
 
         // pemangku lewat riwayat jabatan aktif yang tidak tertangkap nama jabatan
         $linked = EmployeePosition::query()
@@ -170,13 +247,15 @@ class ModuleController extends Controller
             ->with(['employee:id,name', 'position:id,name'])
             ->get();
 
-        $attachHolders = function (Position $position) use ($groups, $linked) {
+        $attachHolders = function (Position $position) use ($groups, $linked, $generic) {
             $key = JabatanSyncService::normalize($position->name);
 
             $names = $groups->get($key)?->pluck('name') ?? collect();
 
             $extra = $linked
-                ->filter(fn ($lp) => JabatanSyncService::normalize($lp->position?->name) === $key
+                ->filter(fn ($lp) => JabatanSyncService::normalize(
+                    $generic ? JabatanSyncService::genericJabatan($lp->position?->name) : $lp->position?->name
+                ) === $key
                     && ! $names->contains($lp->employee?->name))
                 ->map(fn ($lp) => $lp->employee?->name)
                 ->filter();
@@ -201,7 +280,9 @@ class ModuleController extends Controller
 
             $position = new Position([
                 'code' => 'DATA',
-                'name' => trim((string) $sample->position_name),
+                'name' => $generic
+                    ? JabatanSyncService::genericJabatan($sample->position_name)
+                    : trim((string) $sample->position_name),
             ]);
 
             $level = JobLevel::where(
@@ -224,51 +305,105 @@ class ModuleController extends Controller
 
     /* =========================================================
        1c. ANALISIS JABATAN PELAKSANA
+       Catatan Masukan 30 Sept 2026: data sebelumnya kosong karena dihitung
+       dari relasi riwayat jabatan — kini pemangku dihitung langsung dari
+       DATA PEGAWAI (jabatan pelaksana / fungsional umum) + kolom Nomor,
+       filter nama jabatan & jenjang, dan pagination.
        ========================================================= */
-    public function analisisJabatanPelaksana(): View
+    public function analisisJabatanPelaksana(Request $request): View
     {
-        // Jabatan pelaksana / fungsional umum + jumlah pemangku aktif
-        $positions = Position::whereHas('positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
+        // pegawai ASN aktif berjabatan PELAKSANA / fungsional umum:
+        // bukan pejabat struktural (tanpa eselon) & bukan fungsional tertentu
+        $pelaksana = Employee::query()
+            ->where('is_active', true)
+            ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
+            ->whereNotNull('position_name')
+            ->where('position_name', '!=', '')
+            ->with('unit')
+            ->get(['id', 'name', 'position_name', 'eselon', 'functional_level', 'unit_id'])
+            ->filter(fn (Employee $e) => JabatanSyncService::romanEselon($e->eselon) === null
+                && ! JabatanSyncService::looksFungsional($e->position_name, $e->functional_level));
+
+        $master = Position::whereHas('positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
             ->with(['jobLevel', 'positionType'])
-            ->withCount(['employeePositions as holders_count' => fn ($q) => $q->where('is_current', true)])
-            ->orderBy('code')
             ->get();
 
-        // Distribusi pemangku per jenjang pelaksana (dari jabatan saat ini)
-        $jenjang = Employee::query()
-            ->where('employees.is_active', true)
-            ->where('employees.employee_type', '!=', Employee::TYPE_NON_ASN)
-            ->whereHas('currentPosition.position.positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
-            ->join('employee_positions', 'employee_positions.employee_id', '=', 'employees.id')
-            ->join('positions', 'positions.id', '=', 'employee_positions.position_id')
-            ->join('job_levels', 'job_levels.id', '=', 'positions.job_level_id')
-            ->where('employee_positions.is_current', true)
-            ->selectRaw('job_levels.name as label, count(*) as total')
-            ->groupBy('job_levels.name')
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total]);
+        $groups = $pelaksana->groupBy(fn ($e) => JabatanSyncService::normalize($e->position_name));
 
-        // Sebaran pelaksana per unit kerja
-        $perUnit = Employee::query()
-            ->where('employees.is_active', true)
-            ->where('employees.employee_type', '!=', Employee::TYPE_NON_ASN)
-            ->whereHas('currentPosition.position.positionType', fn ($q) => $q->where('code', 'PELAKSANA'))
-            ->join('units', 'units.id', '=', 'employees.unit_id')
-            ->selectRaw('units.name as label, count(*) as total')
-            ->groupBy('units.name')
-            ->orderByDesc('total')
-            ->limit(12)
-            ->get()
-            ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total]);
+        $attachHolders = function (Position $position) use ($groups) {
+            $holders = $groups->get(JabatanSyncService::normalize($position->name))?->pluck('name') ?? collect();
 
-        $totalJabatan = $positions->count();
-        $totalPemangku = $positions->sum('holders_count');
-        $jabatanKosong = $positions->where('holders_count', 0)->count();
-        $totalPelaksana = $jenjang->sum('total');
+            $holders = $holders->unique()->values();
+
+            $position->holders_count = $holders->count();
+            $position->holders_list = $holders->take(3)->implode(', ');
+            $position->holders_more = max(0, $holders->count() - 3);
+
+            return $position;
+        };
+
+        $all = $master->map($attachHolders)->values();
+
+        // jabatan pelaksana pada data pegawai yang belum ada di master
+        // — dibuat sebagai model tanpa disimpan (agar data tetap tampil)
+        $masterKeys = $master->mapWithKeys(fn ($p) => [JabatanSyncService::normalize($p->name) => true]);
+
+        foreach ($groups->keys()->diff($masterKeys->keys()) as $key) {
+            $sample = $groups->get($key)->first();
+
+            $position = new Position([
+                'code' => 'DATA',
+                'name' => trim((string) $sample->position_name),
+            ]);
+
+            $levelCode = JabatanSyncService::jobLevelCode($sample->eselon, $sample->functional_level, $sample->position_name)
+                ?? 'PELAKSANA';
+            $level = JobLevel::where('code', $levelCode)->first();
+
+            $position->job_level_id = $level?->id;
+            $position->setRelation('jobLevel', $level);
+
+            $all->push($attachHolders($position));
+        }
+
+        $all = $all->sortBy([
+            ['holders_count', 'desc'],
+            ['name', 'asc'],
+        ])->values();
+
+        $positions = $this->paginateCollection(
+            $this->filterPositions($all, $request)->values(), 15, $request
+        );
+
+        // Distribusi pemangku per jenjang (dari data pegawai, bukan relasi)
+        $levelNames = JobLevel::query()->pluck('name', 'code');
+
+        $jenjang = $pelaksana
+            ->groupBy(fn ($e) => $levelNames[
+                JabatanSyncService::jobLevelCode($e->eselon, $e->functional_level, $e->position_name) ?? 'PELAKSANA'
+            ] ?? 'Pelaksana (Non-Eselon & Non-Fungsional)')
+            ->map(fn ($group, $label) => ['label' => $label, 'total' => $group->count()])
+            ->sortByDesc('total')
+            ->values();
+
+        // Sebaran pelaksana per unit kerja (dari data pegawai)
+        $perUnit = $pelaksana
+            ->filter(fn ($e) => $e->unit_id !== null)
+            ->groupBy(fn ($e) => $e->unit?->name ?? '-')
+            ->map(fn ($group, $label) => ['label' => $label, 'total' => $group->count()])
+            ->sortByDesc('total')
+            ->take(12)
+            ->values();
+
+        $totalJabatan = $all->count();
+        $totalPemangku = $all->sum('holders_count');
+        $jabatanKosong = $all->where('holders_count', 0)->count();
+        $totalPelaksana = $pelaksana->count();
+
+        $jenjangOptions = $this->jenjangOptions(['PELAKSANA', 'PENYELIA', 'TERAMPIL']);
 
         return view('modules.analisis-jabatan-pelaksana', compact(
-            'positions', 'jenjang', 'perUnit', 'totalJabatan', 'totalPemangku', 'jabatanKosong', 'totalPelaksana'
+            'positions', 'jenjang', 'perUnit', 'totalJabatan', 'totalPemangku', 'jabatanKosong', 'totalPelaksana', 'jenjangOptions'
         ));
     }
 
@@ -384,6 +519,12 @@ class ModuleController extends Controller
     {
         $user = $request->user();
 
+        // pegawai biasa hanya boleh untuk dirinya sendiri (dicek SEBELUM
+        // validasi agar akses ilegal selalu 403 walau isian belum lengkap)
+        $targetEmployeeId = (int) $request->input('employee_id');
+        abort_unless($user->isPrivileged() || $targetEmployeeId === (int) $user->employee_id,
+            403, 'Anda hanya dapat menambahkan riwayat untuk profil Anda sendiri.');
+
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],
             'name' => ['required', 'max:255'],
@@ -393,18 +534,16 @@ class ModuleController extends Controller
             'year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-            'hours' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'hours' => ['nullable', 'integer', 'min' => 0, 'max' => 9999],
             'certificate_number' => ['nullable', 'max:100'],
-            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'], // sertifikat maks 10 MB
+            // Catatan 30 Sept 2026: unggah dokumen/sertifikat bukti keikutsertaan WAJIB
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'], // sertifikat maks 10 MB
         ], [
             'employee_id.required' => 'Pegawai peserta wajib dipilih.',
             'name.required' => 'Nama diklat/seminar/pelatihan wajib diisi.',
             'end_date.after_or_equal' => 'Tanggal selesai harus setelah tanggal mulai.',
+            'file.required' => 'Dokumen/sertifikat bukti keikutsertaan diklat/seminar/pelatihan wajib diunggah (PDF/JPG, maks. 10 MB).',
         ]);
-
-        // pegawai biasa hanya boleh untuk dirinya sendiri
-        abort_unless($user->isPrivileged() || (int) $validated['employee_id'] === (int) $user->employee_id,
-            403, 'Anda hanya dapat menambahkan riwayat untuk profil Anda sendiri.');
 
         $validated['scope'] = $validated['scope'] ?? EmployeeTraining::SCOPE_DOMESTIC;
         $validated['file_path'] = $request->file('file')?->store('diklat', 'public');
@@ -494,9 +633,9 @@ class ModuleController extends Controller
             'description' => ['nullable'],
             'file' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:10240'], // dokumen maks 10 MB
         ], [
-            'title.required' => 'Nama SOP wajib diisi.',
-            'category.required' => 'Kategori SOP wajib dipilih.',
-            'category.in' => 'Kategori SOP tidak valid.',
+            'title.required' => 'Nama dokumen wajib diisi.',
+            'category.required' => 'Kategori dokumen wajib dipilih.',
+            'category.in' => 'Kategori dokumen tidak valid.',
         ]);
 
         $validated['file_path'] = $request->file('file')?->store('sops', 'public');
@@ -505,29 +644,29 @@ class ModuleController extends Controller
 
         $sop = Sop::create($validated);
 
-        \App\Models\AuditLog::record(\App\Models\AuditLog::EVENT_CREATE, 'sop', 'Mengunggah dokumen SOP: '.$sop->title);
+        \App\Models\AuditLog::record(\App\Models\AuditLog::EVENT_CREATE, 'sop', 'Mengunggah dokumen kepegawaian: '.$sop->title);
 
         // notifikasi email pengajuan dokumen SOP ke Administrator Utama
         \App\Services\Notifier::notifyAdmins(
             type: 'sop',
-            title: 'Pengajuan Dokumen SOP',
+            title: 'Pengajuan Dokumen Kepegawaian',
             greeting: 'Halo Administrator Utama',
             lines: [
-                'Ada dokumen SOP baru yang diunggah ke aplikasi Dashboard Biro OSDMRB dan menunggu peninjauan.',
+                'Ada dokumen kepegawaian baru yang diunggah ke aplikasi Dashboard Biro OSDMRB dan menunggu peninjauan.',
             ],
             fields: [
-                'Judul SOP' => $sop->title,
+                'Judul Dokumen' => $sop->title,
                 'Kategori' => $sop->category,
                 'Nomor' => $sop->number ?: '-',
                 'Diunggah oleh' => $request->user()->name,
                 'Waktu' => now()->setTimezone(config('app.timezone'))->format('d F Y H:i'),
             ],
             actionUrl: route('modules.sop'),
-            actionText: 'Lihat Daftar SOP',
+            actionText: 'Lihat Daftar Dokumen',
         );
 
         return redirect()->route('modules.sop')
-            ->with('success', 'SOP berhasil diunggah.');
+            ->with('success', 'Dokumen berhasil diunggah.');
     }
 
     /**
@@ -536,7 +675,7 @@ class ModuleController extends Controller
     public function sopDownload(Sop $sop)
     {
         abort_unless($sop->file_path && Storage::disk('public')->exists($sop->file_path),
-            404, 'Dokumen SOP tidak tersedia.');
+            404, 'Dokumen tidak tersedia.');
 
         return Storage::disk('public')->download($sop->file_path, $sop->file_name ?: basename($sop->file_path));
     }
@@ -547,7 +686,7 @@ class ModuleController extends Controller
     public function sopPreview(Sop $sop)
     {
         abort_unless($sop->file_path && Storage::disk('public')->exists($sop->file_path),
-            404, 'Dokumen SOP tidak tersedia.');
+            404, 'Dokumen tidak tersedia.');
 
         $name = $sop->file_name ?: basename($sop->file_path);
         $mime = Storage::disk('public')->mimeType($sop->file_path) ?: 'application/octet-stream';
@@ -570,7 +709,7 @@ class ModuleController extends Controller
         $sop->delete();
 
         return redirect()->route('modules.sop')
-            ->with('success', 'SOP berhasil dihapus.');
+            ->with('success', 'Dokumen berhasil dihapus.');
     }
 
     /* =========================================================
@@ -578,7 +717,7 @@ class ModuleController extends Controller
        ========================================================= */
     public function strukturOrganisasi(): View
     {
-        $units = Unit::where('is_active', true)->orderBy('name')->get();
+        $units = Unit::where('is_active', true)->ordered()->get();
 
         // Catatan rapat 23 Sept 2026: bagan berakar pada unit KEMENTERIAN yang
         // sebenarnya (bukan root sintetis) agar Eselon I tidak tampil dobel —

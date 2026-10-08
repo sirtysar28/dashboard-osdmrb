@@ -136,9 +136,19 @@ class UpdateSeptember28Test extends TestCase
     public function test_analis_jabatan_struktural_menampilkan_pimpinan(): void
     {
         $kabag = $this->makeEmployee([
-            'name' => 'Kepala Bagian Uji Struktural',
+            'name' => 'Aaaa Kepala Bagian Uji Struktural',
             'position_name' => 'Kepala Bagian Perencanaan dan Data',
             'eselon' => 'III',
+            'functional_level' => null,
+            'tmt_pns' => '2018-01-01',
+        ]);
+
+        // jabatan umum lain yang belum ada pemangkunya — agar nama pejabat uji
+        // pasti tampil pada daftar 3 nama pemangku pertama
+        $direktur = $this->makeEmployee([
+            'name' => 'Aaaa Direktur Uji Struktural',
+            'position_name' => 'Direktur Pembangunan Kawasan Transmigrasi',
+            'eselon' => 'II',
             'functional_level' => null,
             'tmt_pns' => '2018-01-01',
         ]);
@@ -147,10 +157,12 @@ class UpdateSeptember28Test extends TestCase
             ->get(route('modules.analisis-jabatan-struktural'))
             ->assertOk();
 
-        // jabatan spesifik dari data pegawai dikenali…
-        $res->assertSee('Kepala Bagian Perencanaan dan Data');
+        // Catatan 30 Sept 2026: halaman struktural memakai NAMA JABATAN UMUM —
+        // "Kepala Bagian Perencanaan dan Data" dikelompokkan sebagai "Kepala Bagian"…
+        $res->assertSee('Kepala Bagian');
+        $res->assertDontSee('Kepala Bagian Perencanaan dan Data');
         // …beserta pimpinannya (status Terisi, bukan kosong semua)
-        $res->assertSee($kabag->name);
+        $res->assertSee($direktur->name);
         $res->assertSee('Terisi');
     }
 

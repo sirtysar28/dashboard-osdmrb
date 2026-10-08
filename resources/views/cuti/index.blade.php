@@ -5,20 +5,29 @@
 
 @section('content')
 
+@php
+    /* Catatan Masukan 30 Sept 2026: fitur pencarian daftar cuti hanya untuk
+       Admin Bagian & Super Admin — akun pegawai tidak perlu pencarian karena
+       daftar cuti pegawai lain tidak dapat dilihat akun pegawai lain. */
+    $canSearch = auth()->user()->isAdmin() || auth()->user()->isSuperAdmin();
+@endphp
+
 <div class="filter-card mb-4">
     <form method="GET" class="row g-2 align-items-end">
-        <div class="col-lg-4 col-md-6">
-            <label>Pencarian</label>
-            <input type="text" name="search" class="form-control form-control-sm"
-                   placeholder="Nama pegawai / alasan..." value="{{ $filters['search'] ?? '' }}">
-        </div>
-        <div class="col-lg-3 col-md-3 col-6">
+        @if ($canSearch)
+            <div class="col-lg-4 col-md-6">
+                <label>Pencarian</label>
+                <input type="text" name="search" class="form-control form-control-sm"
+                       placeholder="Nama pegawai / alasan..." value="{{ $filters['search'] ?? '' }}">
+            </div>
+        @endif
+        <div class="{{ $canSearch ? 'col-lg-3 col-md-3 col-6' : 'col-lg-5 col-md-5 col-12' }}">
             <label>Jenis Cuti <small class="text-muted">(bisa pilih &gt;1)</small></label>
             <x-multi-select name="type" placeholder="Semua Jenis"
                             :options="\App\Models\LeaveRequest::typeOptions()"
                             :selected="collect($filters['type'] ?? [])->all()" />
         </div>
-        <div class="col-lg-3 col-md-3 col-6">
+        <div class="{{ $canSearch ? 'col-lg-3 col-md-3 col-6' : 'col-lg-5 col-md-5 col-12' }}">
             <label>Status <small class="text-muted">(bisa pilih &gt;1)</small></label>
             <x-multi-select name="status" placeholder="Semua Status"
                             :options="[
@@ -29,7 +38,7 @@
                             ]"
                             :selected="collect($filters['status'] ?? [])->all()" />
         </div>
-        <div class="col-lg-2 col-md-12">
+        <div class="{{ $canSearch ? 'col-lg-2 col-md-12' : 'col-lg-2 col-md-2' }}">
             <button class="btn btn-osdmrb btn-sm w-100"><i class="bi bi-search"></i> Cari</button>
         </div>
     </form>

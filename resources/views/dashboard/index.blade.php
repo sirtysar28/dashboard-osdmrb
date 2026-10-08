@@ -172,6 +172,7 @@
     </div>
 </div>
 
+
 <!-- ================= STATISTIC CARDS KENAIKAN JABATAN + PENGUNJUNG =================
      Card "Jatuh Tempo Kenaikan" dihapus (permintaan). -->
 <div class="row g-3 mb-4">
@@ -319,7 +320,81 @@
         </div>
     </div>
 </div>
+<!-- ================= TABEL PEGAWAI + SURVEI ================= -->
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="table-card">
+            <div class="card-header-custom">
+                <h5 class="mb-0">Hasil Filter — Data Pegawai</h5>
+                <a href="{{ route('employees.index') }}" class="btn btn-sm btn-outline-osdmrb">
+                    Lihat Semua <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
 
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nama</th>
+                            <th>NIP</th>
+                            <th>Jabatan</th>
+                            <th>Golongan</th>
+                            <th>Status</th>
+                            <th>Unit Kerja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($employees as $employee)
+                            <tr>
+                                <td>{{ $employees->firstItem() + $loop->iteration - 1 }}</td>
+                                <td>
+                                    <a href="{{ route('employees.show', $employee) }}" class="text-decoration-none fw-semibold">
+                                        {{ $employee->name }}
+                                    </a>
+                                </td>
+                                <td>{{ $employee->nip }}</td>
+                                <td>{{ $employee->position_name ?: ($employee->currentPosition?->position?->name ?? '-') }}</td>
+                                <td>{{ $employee->rank?->code ?? '-' }}</td>
+                                <td>
+                                    <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info') }}">
+                                        {{ $employee->display_status }}
+                                    </span>
+                                </td>
+                                <td>{{ $employee->unit?->name ?? '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7" class="text-center text-muted py-4">Tidak ada data pegawai.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                {{ $employees->links() }}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <x-survey-form />
+
+        <div class="chart-card mt-3">
+            <h5><i class="bi bi-stars me-2"></i>Ringkasan Survei</h5>
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <div>
+                    <h1 class="mb-0" style="font-size:34px">{{ $surveyStats['average'] ?: '-' }}</h1>
+                    <small class="text-muted">rata-rata dari {{ $surveyStats['total'] }} resp</small>
+                </div>
+                <div class="ms-auto text-end">
+                    @for ($i = 1; $i <= 5; $i++)
+                        <i class="bi {{ $i <= round($surveyStats['average']) ? 'bi-star-fill text-warning' : 'bi-star text-muted' }}"></i>
+                    @endfor
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- ================= KENAIKAN JABATAN / PANGKAT ================= -->
 <div class="row g-3 mb-4">
     
@@ -446,82 +521,6 @@
                     <td class="text-end fw-semibold text-danger">{{ number_format($salaryRaiseStats['overdue']) }} pegawai</td>
                 </tr>
             </table>
-        </div>
-    </div>
-</div>
-
-<!-- ================= TABEL PEGAWAI + SURVEI ================= -->
-<div class="row g-3">
-    <div class="col-lg-8">
-        <div class="table-card">
-            <div class="card-header-custom">
-                <h5 class="mb-0">Data Pegawai</h5>
-                <a href="{{ route('employees.index') }}" class="btn btn-sm btn-outline-osdmrb">
-                    Lihat Semua <i class="bi bi-arrow-right"></i>
-                </a>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nama</th>
-                            <th>NIP</th>
-                            <th>Jabatan</th>
-                            <th>Golongan</th>
-                            <th>Status</th>
-                            <th>Unit Kerja</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($employees as $employee)
-                            <tr>
-                                <td>{{ $employees->firstItem() + $loop->iteration - 1 }}</td>
-                                <td>
-                                    <a href="{{ route('employees.show', $employee) }}" class="text-decoration-none fw-semibold">
-                                        {{ $employee->name }}
-                                    </a>
-                                </td>
-                                <td>{{ $employee->nip }}</td>
-                                <td>{{ $employee->position_name ?: ($employee->currentPosition?->position?->name ?? '-') }}</td>
-                                <td>{{ $employee->rank?->code ?? '-' }}</td>
-                                <td>
-                                    <span class="badge {{ $employee->is_retired ? 'bg-secondary' : (in_array($employee->employmentStatus?->code, ['ASN', 'PNS']) && ! $employee->is_effective_cpns ? 'bg-primary' : 'bg-info') }}">
-                                        {{ $employee->display_status }}
-                                    </span>
-                                </td>
-                                <td>{{ $employee->unit?->name ?? '-' }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="7" class="text-center text-muted py-4">Tidak ada data pegawai.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="mt-3">
-                {{ $employees->links() }}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <x-survey-form />
-
-        <div class="chart-card mt-3">
-            <h5><i class="bi bi-stars me-2"></i>Ringkasan Survei</h5>
-            <div class="d-flex align-items-center gap-3 mb-2">
-                <div>
-                    <h1 class="mb-0" style="font-size:34px">{{ $surveyStats['average'] ?: '-' }}</h1>
-                    <small class="text-muted">rata-rata dari {{ $surveyStats['total'] }} resp</small>
-                </div>
-                <div class="ms-auto text-end">
-                    @for ($i = 1; $i <= 5; $i++)
-                        <i class="bi {{ $i <= round($surveyStats['average']) ? 'bi-star-fill text-warning' : 'bi-star text-muted' }}"></i>
-                    @endfor
-                </div>
-            </div>
         </div>
     </div>
 </div>

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('page_title', 'SOP Kementerian')
-@section('page_subtitle', 'Standar Operasional Prosedur layanan &amp; tata kerja unit')
+@section('page_title', 'Dokumen Kepegawaian')
+@section('page_subtitle', 'Dokumen kepegawaian: SOP, petunjuk teknis &amp; dokumen layanan unit')
 
 @section('content')
 
@@ -26,7 +26,7 @@
         <div class="col-lg-5 col-md-6">
             <label>Pencarian</label>
             <input type="text" name="search" class="form-control form-control-sm"
-                   placeholder="Nama SOP / nomor / unit penyusun..." value="{{ request('search') }}">
+                   placeholder="Nama dokumen / nomor / unit penyusun..." value="{{ request('search') }}">
         </div>
         <div class="col-lg-3 col-md-3 col-6">
             <label>Kategori</label>
@@ -60,11 +60,11 @@
     <div class="col-lg-12">
         <div class="table-card">
             <div class="card-header-custom">
-                <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Daftar SOP ({{ $sops->total() }})</h5>
+                <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Daftar Dokumen Kepegawaian ({{ $sops->total() }})</h5>
 
                 @if ($canManage)
                     <button class="btn btn-sm btn-osdmrb" data-bs-toggle="modal" data-bs-target="#modalUnggahSop">
-                        <i class="bi bi-plus-lg"></i> Unggah SOP
+                        <i class="bi bi-plus-lg"></i> Unggah Dokumen
                     </button>
                 @endif
             </div>
@@ -74,7 +74,7 @@
                     <thead>
                         <tr>
                             <th style="width: 60px;">No</th>
-                            <th>Nama SOP</th>
+                            <th>Nama Dokumen</th>
                             <th>Kategori</th>
                             <th>Unit Penyusun</th>
                             <th class="text-center">Tahun</th>
@@ -109,7 +109,7 @@
                                                 <i class="bi bi-eye"></i> <span class="d-lg-none">Preview</span>
                                             </button>
                                             <a href="{{ route('modules.sop.download', $sop) }}" class="btn btn-sm btn-outline-osdmrb"
-                                               data-no-loader title="Unduh dokumen SOP">
+                                               data-no-loader title="Unduh dokumen">
                                                 <i class="bi bi-download"></i> <span class="d-lg-none">Unduh</span>
                                             </a>
                                         </div>
@@ -120,7 +120,7 @@
                                 @if ($canManage)
                                     <td class="text-center">
                                         <form action="{{ route('modules.sop.destroy', $sop) }}" method="POST" class="d-inline"
-                                              onsubmit="return confirm('Hapus SOP ini?')">
+                                              onsubmit="return confirm('Hapus dokumen ini?')">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash"></i></button>
                                         </form>
@@ -131,8 +131,8 @@
                             <tr>
                                 <td colspan="{{ $canManage ? 8 : 7 }}" class="text-center py-5">
                                     <i class="bi bi-journal-text text-muted" style="font-size: 2.4rem;"></i>
-                                    <p class="text-muted mt-2 mb-1"><strong>Belum ada SOP yang diunggah</strong></p>
-                                    <p class="text-muted small mb-0">Dokumen SOP akan dikategorisasi, diberi status, dan dapat diunduh dari halaman ini.</p>
+                                    <p class="text-muted mt-2 mb-1"><strong>Belum ada dokumen yang diunggah</strong></p>
+                                    <p class="text-muted small mb-0">Dokumen akan dikategorisasi, diberi status, dan dapat diunduh dari halaman ini.</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -157,7 +157,7 @@
 
                     <div class="modal-header">
                         <h5 class="modal-title" id="modalUnggahSopLabel">
-                            <i class="bi bi-cloud-arrow-up me-2"></i>Unggah SOP Kementerian
+                            <i class="bi bi-cloud-arrow-up me-2"></i>Unggah Dokumen Kepegawaian
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                     </div>
@@ -165,13 +165,13 @@
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-md-8">
-                                <label class="form-label" for="sopTitle">Nama SOP <span class="text-danger">*</span></label>
+                                <label class="form-label" for="sopTitle">Nama Dokumen <span class="text-danger">*</span></label>
                                 <input type="text" name="title" id="sopTitle" class="form-control @error('title') is-invalid @enderror"
                                        value="{{ old('title') }}" placeholder="mis. SOP Pelayanan Surat Keterangan Pegawai" required>
                                 @error('title')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="sopNumber">Nomor SOP</label>
+                                <label class="form-label" for="sopNumber">Nomor Dokumen</label>
                                 <input type="text" name="number" id="sopNumber" class="form-control @error('number') is-invalid @enderror"
                                        value="{{ old('number') }}" placeholder="mis. SOP-021/OSDMRB/2026">
                                 @error('number')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -210,14 +210,14 @@
                             <div class="col-12">
                                 <label class="form-label" for="sopDesc">Deskripsi / Uraian Singkat</label>
                                 <textarea name="description" id="sopDesc" rows="2" class="form-control @error('description') is-invalid @enderror"
-                                          placeholder="Ringkasan ruang lingkup SOP (opsional)">{{ old('description') }}</textarea>
+                                          placeholder="Ringkasan isi dokumen (opsional)">{{ old('description') }}</textarea>
                                 @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
-                                <label class="form-label" for="sopFile">Dokumen SOP (PDF / Word, maks. 10 MB)</label>
+                                <label class="form-label" for="sopFile">Dokumen (PDF / Word, maks. 10 MB)</label>
                                 <input type="file" name="file" id="sopFile" accept=".pdf,.doc,.docx"
                                        class="form-control @error('file') is-invalid @enderror">
-                                <div class="form-text">Unggah berkas resmi SOP untuk dapat diunduh seluruh pegawai.</div>
+                                <div class="form-text">Unggah berkas resmi dokumen untuk dapat diunduh seluruh pegawai.</div>
                                 @error('file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
@@ -225,7 +225,7 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-osdmrb" data-loader-text="Mengunggah SOP">
+                        <button type="submit" class="btn btn-osdmrb" data-loader-text="Mengunggah dokumen">
                             <i class="bi bi-cloud-arrow-up me-1"></i> Unggah
                         </button>
                     </div>

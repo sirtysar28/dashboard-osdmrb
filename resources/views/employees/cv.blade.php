@@ -86,6 +86,10 @@
                 <td class="label">Bahasa Inggris</td><td>: {{ $employee->english_skill_label }}</td>
             </tr>
             <tr>
+                <td class="label">Tingkat Pendidikan Terakhir</td><td>: {{ $employee->education?->name ?? '-' }}</td>
+                <td class="label"></td><td></td>
+            </tr>
+            <tr>
                 <td class="label">Email</td><td>: {{ $employee->email ?? '-' }}</td>
                 <td class="label">Telepon</td><td>: {{ $employee->phone ?? '-' }}</td>
             </tr>
@@ -120,14 +124,13 @@
 
     {{-- ================== PENDIDIKAN ================== --}}
     <div class="sec">
-        <h3>C. R IWAYAT PENDIDIKAN</h3>
+        <h3>C. RIWAYAT PENDIDIKAN</h3>
         <table class="grid">
             <thead><tr><th style="width:26px">No</th><th>Jenjang</th><th>Kampus / Institusi &amp; Jurusan</th></tr></thead>
             <tbody>
                 @foreach ([
-                    ['Tingkat Terakhir', $employee->education?->name ?? '-'],
-                    ['Pendidikan 1', $employee->education_1],
-                    ['Pendidikan 2', $employee->education_2],
+                    ['Pendidikan 1', $employee->education_2],
+                    ['Pendidikan 2', $employee->education_1],
                     ['Pendidikan 3', $employee->education_3],
                 ] as $i => [$jenjang, $nilai])
                     @if ($nilai)

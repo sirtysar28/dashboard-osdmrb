@@ -149,10 +149,10 @@ class UpdateSeptember8Test extends TestCase
         $this->assertSame('S2 Ilmu Hukum, Universitas Diponegoro', $employee->education_1);
         $this->assertNull($employee->education_2);
 
-        // form edit: dropdown kampus terpilih otomatis dari data lama
+        // form edit: dropdown kampus (komponen pencarian) terpilih otomatis dari data lama
         $this->get("/employees/{$employee->id}/edit")
             ->assertOk()
-            ->assertSee('value="'.$undip->id.'" selected', false)
+            ->assertSee('name="education_1_campus" value="'.$undip->id.'"', false)
             ->assertSee('S2 Ilmu Hukum');
     }
 

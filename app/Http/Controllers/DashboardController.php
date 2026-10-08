@@ -47,8 +47,8 @@ class DashboardController extends Controller
             'filters' => $filters,
             'filterOptions' => [
                 'es1List' => Unit::where('level', 'ES_I')->orderBy('name')->get(),
-                'es2List' => Unit::where('level', 'ES_II')->orderBy('name')->get(),
-                'balaiList' => Unit::where('level', 'BALAI')->orderBy('name')->get(),
+                'es2List' => Unit::where('level', 'ES_II')->ordered()->get(),
+                'balaiList' => Unit::where('level', 'BALAI')->ordered()->get(),
                 'statusList' => EmploymentStatus::orderBy('name')->get(),
                 'rankList' => Rank::orderBy('sort_order')->get(),
                 'educationList' => EducationLevel::orderBy('sort_order')->get(),
