@@ -87,8 +87,12 @@ class ModuleController extends Controller
 
         $all = $this->buildPositionAnalysis('STRUKTURAL', generic: true);
 
+        // jabatan yang formasi-nya KOSONG tidak dimunculkan
+        // (Catatan Masukan 7 Okt 2026 — sama seperti menu fungsional)
         $positions = $this->paginateCollection(
-            $this->filterPositions($all, $request)->values(), 15, $request
+            $this->filterPositions($all, $request)
+                ->filter(fn ($p) => $p->holders_count > 0)
+                ->values(), 15, $request
         );
 
         // Distribusi pejabat struktural per eselon (dari data pegawai ASN aktif)
@@ -218,12 +222,14 @@ class ModuleController extends Controller
         }
 
         // pegawai ASN aktif sesuai jenis jabatan yang dianalisis
+        // (unit kerja ikut dimuat — daftar pemangku jabatan pada popup)
         $employees = Employee::query()
             ->where('is_active', true)
             ->where('employee_type', '!=', Employee::TYPE_NON_ASN)
             ->whereNotNull('position_name')
             ->where('position_name', '!=', '')
-            ->get(['id', 'name', 'position_name', 'eselon', 'functional_level'])
+            ->with('unit:id,name')
+            ->get(['id', 'name', 'position_name', 'eselon', 'functional_level', 'unit_id'])
             ->filter(function (Employee $e) use ($typeCode) {
                 $struktural = JabatanSyncService::romanEselon($e->eselon) !== null;
 
@@ -244,7 +250,7 @@ class ModuleController extends Controller
             ->whereHas('employee', fn ($q) => $q->where('is_active', true)
                 ->where('employee_type', '!=', Employee::TYPE_NON_ASN))
             ->whereHas('position', fn ($q) => $q->whereHas('positionType', fn ($t) => $t->where('code', $typeCode)))
-            ->with(['employee:id,name', 'position:id,name'])
+            ->with(['employee:id,name', 'position:id,name', 'unit:id,name'])
             ->get();
 
         $attachHolders = function (Position $position) use ($groups, $linked, $generic) {
@@ -265,6 +271,33 @@ class ModuleController extends Controller
             $position->holders_count = $holders->count();
             $position->holders_list = $holders->take(3)->implode(', ');
             $position->holders_more = max(0, $holders->count() - 3);
+
+            // daftar lengkap pemangku (nama + unit kerja) untuk popup jumlah
+            // pegawai yang bisa diklik (Catatan Masukan 7 Okt 2026)
+            $byName = $groups->get($key)?->keyBy(fn ($e) => $e->name) ?? collect();
+
+            $extraLinks = $linked->filter(fn ($lp) => JabatanSyncService::normalize(
+                $generic ? JabatanSyncService::genericJabatan($lp->position?->name) : $lp->position?->name
+            ) === $key);
+
+            $position->holders_all = $holders->map(function ($name) use ($byName, $extraLinks) {
+                if ($employee = $byName->get($name)) {
+                    return [
+                        'id' => $employee->id,
+                        'name' => $name,
+                        'unit' => $employee->unit?->name,
+                    ];
+                }
+
+                // pemangku yang hanya tertangkap lewat riwayat jabatan aktif
+                $link = $extraLinks->first(fn ($lp) => $lp->employee?->name === $name);
+
+                return [
+                    'id' => $link?->employee?->id,
+                    'name' => $name,
+                    'unit' => $link?->unit?->name,
+                ];
+            })->values()->all();
 
             return $position;
         };
@@ -331,13 +364,28 @@ class ModuleController extends Controller
         $groups = $pelaksana->groupBy(fn ($e) => JabatanSyncService::normalize($e->position_name));
 
         $attachHolders = function (Position $position) use ($groups) {
-            $holders = $groups->get(JabatanSyncService::normalize($position->name))?->pluck('name') ?? collect();
+            $rows = $groups->get(JabatanSyncService::normalize($position->name)) ?? collect();
 
-            $holders = $holders->unique()->values();
+            $holders = $rows->pluck('name')->unique()->values();
 
             $position->holders_count = $holders->count();
             $position->holders_list = $holders->take(3)->implode(', ');
             $position->holders_more = max(0, $holders->count() - 3);
+
+            // daftar lengkap pemangku (nama + unit kerja) untuk popup jumlah
+            // pegawai yang bisa diklik (Catatan Masukan 7 Okt 2026 — model
+            // sama seperti menu analisis jabatan fungsional)
+            $byName = $rows->keyBy(fn ($e) => $e->name);
+
+            $position->holders_all = $holders->map(function ($name) use ($byName) {
+                $employee = $byName->get($name);
+
+                return [
+                    'id' => $employee?->id,
+                    'name' => $name,
+                    'unit' => $employee?->unit?->name,
+                ];
+            })->values()->all();
 
             return $position;
         };
@@ -371,8 +419,12 @@ class ModuleController extends Controller
             ['name', 'asc'],
         ])->values();
 
+        // jabatan yang totalnya KOSONG (0 pegawai) tidak dimunculkan — hanya
+        // yang ada pemangkunya (Catatan Masukan 7 Okt 2026)
         $positions = $this->paginateCollection(
-            $this->filterPositions($all, $request)->values(), 15, $request
+            $this->filterPositions($all, $request)
+                ->filter(fn ($p) => $p->holders_count > 0)
+                ->values(), 15, $request
         );
 
         // Distribusi pemangku per jenjang (dari data pegawai, bukan relasi)

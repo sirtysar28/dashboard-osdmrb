@@ -7,7 +7,7 @@
 
 <!-- ================= RINGKASAN ================= -->
 <div class="row g-3 mb-4">
-    <div class="col-lg-3 col-md-6 col-6">
+    <div class="col-lg-4 col-md-6 col-6">
         <div class="stat-card">
             <div class="stat-icon"><i class="bi bi-diagram-3"></i></div>
             <div>
@@ -17,7 +17,7 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-3 col-md-6 col-6">
+    <div class="col-lg-4 col-md-6 col-6">
         <div class="stat-card">
             <div class="stat-icon success"><i class="bi bi-person-check"></i></div>
             <div>
@@ -27,17 +27,17 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-3 col-md-6 col-6">
-        <div class="stat-card">
-            <div class="stat-icon danger"><i class="bi bi-person-x"></i></div>
-            <div>
-                <span>Formasi Kosong</span>
-                <h2>{{ number_format($jabatanKosong) }}</h2>
-                <small>belum terisi</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-3 col-md-6 col-6">
+    <!--<div class="col-lg-3 col-md-6 col-6">-->
+    <!--    <div class="stat-card">-->
+    <!--        <div class="stat-icon danger"><i class="bi bi-person-x"></i></div>-->
+    <!--        <div>-->
+    <!--            <span>Formasi Kosong</span>-->
+    <!--            <h2>{{ number_format($jabatanKosong) }}</h2>-->
+    <!--            <small>belum terisi</small>-->
+    <!--        </div>-->
+    <!--    </div>-->
+    <!--</div>-->
+    <div class="col-lg-4 col-md-6 col-6">
         <div class="stat-card">
             <div class="stat-icon accent"><i class="bi bi-bar-chart-steps"></i></div>
             <div>
@@ -61,11 +61,11 @@
             {{-- Filter nama jabatan & jenjang (Catatan 30 Sept 2026) --}}
             <form method="GET" class="px-3 pt-3">
                 <div class="row g-2">
-                    <div class="col-6">
+                    <div class="col-12 col-sm-6">
                         <input type="text" name="nama" class="form-control form-control-sm"
                                placeholder="Cari nama jabatan..." value="{{ request('nama') }}">
                     </div>
-                    <div class="col-4">
+                    <div class="col-12 col-sm-4">
                         <select name="jenjang" class="form-select form-select-sm">
                             <option value="">Semua Jenjang</option>
                             @foreach ($jenjangOptions as $code => $label)
@@ -73,7 +73,8 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-1 d-flex gap-1">
+                    {{-- layar kecil: tombol menumpuk full-width agar mudah di-tap --}}
+                    <div class="col-12 col-sm-2 d-flex gap-1 filter-actions">
                         <button class="btn btn-osdmrb btn-sm flex-fill" title="Terapkan"><i class="bi bi-search"></i></button>
                         <a href="{{ route('modules.analisis-jabatan-struktural') }}" class="btn btn-outline-secondary btn-sm" title="Reset"><i class="bi bi-x-lg"></i></a>
                     </div>
@@ -88,7 +89,7 @@
                             <th>Kode</th>
                             <th>Nama Jabatan Umum</th>
                             <th>Jenjang</th>
-                            <th class="text-center">Pemangku</th>
+                            <th class="text-center">Jumlah Pegawai</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -100,11 +101,19 @@
                                 <td class="fw-semibold">{{ $position->name }}</td>
                                 <td><span class="badge bg-light text-dark border">{{ $position->jobLevel?->name ?? '-' }}</span></td>
                                 <td class="text-center">
-                                    {{ $position->holders_count }}
-                                    @if ($position->holders_list)
-                                        <div class="small text-muted" style="max-width: 200px; margin: 2px auto 0;">
-                                            {{ $position->holders_list }}@if ($position->holders_more) <em>+{{ $position->holders_more }} lainnya</em>@endif
-                                        </div>
+                                    {{-- Catatan 7 Okt 2026: model sama seperti menu fungsional — angka
+                                         bisa diklik utk memunculkan daftar pegawai --}}
+                                    @if (($position->holders_all ?? []) !== [])
+                                        <button type="button"
+                                                class="btn btn-sm btn-osdmrb d-inline-flex align-items-center gap-1 holders-btn"
+                                                data-bs-toggle="modal" data-bs-target="#daftarPegawaiModal"
+                                                data-jabatan="{{ $position->name }}"
+                                                data-holders='@json($position->holders_all)'
+                                                title="Lihat daftar pegawai pemangku jabatan">
+                                            <i class="bi bi-people-fill"></i> {{ $position->holders_count }} pegawai
+                                        </button>
+                                    @else
+                                        {{ $position->holders_count }}
                                     @endif
                                 </td>
                                 <td>
@@ -116,7 +125,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada jabatan struktural yang cocok dengan filter.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada jabatan struktural yang cocok dengan filter (formasi kosong tidak ditampilkan).</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -185,4 +194,88 @@
     </div>
 </div>
 
+<div class="modal fade" id="daftarPegawaiModal" tabindex="-1" aria-hidden="true"
+     aria-labelledby="daftarPegawaiModalTitle">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="daftarPegawaiModalTitle">Daftar Pegawai</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body p-0">
+                <ul class="list-group list-group-flush holders-list"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+    /* Popup daftar pegawai pemangku jabatan — model sama seperti menu
+       analisis jabatan fungsional (Catatan 7 Okt 2026). */
+    document.addEventListener('DOMContentLoaded', function () {
+        var modal = document.getElementById('daftarPegawaiModal');
+        if (!modal) return;
+
+        modal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            if (!btn) return;
+
+            var holders = [];
+            try { holders = JSON.parse(btn.dataset.holders || '[]'); } catch (e) {}
+
+            modal.querySelector('.modal-title').textContent =
+                'Daftar Pegawai — ' + (btn.dataset.jabatan || '');
+
+            var list = modal.querySelector('.holders-list');
+            list.innerHTML = '';
+
+            holders.forEach(function (p) {
+                var li = document.createElement('li');
+                li.className = 'list-group-item d-flex align-items-center gap-2';
+
+                var initials = (p.name || '?').split(' ').map(function (w) { return w.charAt(0); }).slice(0, 2).join('').toUpperCase();
+                var avatar = document.createElement('span');
+                avatar.className = 'holder-avatar';
+                avatar.textContent = initials;
+                li.appendChild(avatar);
+
+                var body = document.createElement('div');
+                body.className = 'min-width-0';
+
+                var nameRow = document.createElement('div');
+                if (p.id) {
+                    var a = document.createElement('a');
+                    a.href = '{{ url('/employees') }}/' + p.id;
+                    a.className = 'fw-semibold text-decoration-none';
+                    a.textContent = p.name;
+                    nameRow.appendChild(a);
+                } else {
+                    nameRow.className = 'fw-semibold';
+                    nameRow.textContent = p.name;
+                }
+                body.appendChild(nameRow);
+
+                if (p.unit) {
+                    var unitRow = document.createElement('small');
+                    unitRow.className = 'text-muted d-block text-truncate';
+                    unitRow.textContent = p.unit;
+                    body.appendChild(unitRow);
+                }
+
+                li.appendChild(body);
+                list.appendChild(li);
+            });
+
+            if (! holders.length) {
+                var empty = document.createElement('li');
+                empty.className = 'list-group-item text-center text-muted py-4';
+                empty.textContent = 'Belum ada pegawai pemangku jabatan ini.';
+                list.appendChild(empty);
+            }
+        });
+    });
+</script>
+@endpush

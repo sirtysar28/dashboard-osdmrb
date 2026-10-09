@@ -46,7 +46,7 @@ class DashboardController extends Controller
             'announcements' => \App\Models\Announcement::activeAll(),
             'filters' => $filters,
             'filterOptions' => [
-                'es1List' => Unit::where('level', 'ES_I')->orderBy('name')->get(),
+                'es1List' => Unit::where('level', 'ES_I')->ordered()->get(),
                 'es2List' => Unit::where('level', 'ES_II')->ordered()->get(),
                 'balaiList' => Unit::where('level', 'BALAI')->ordered()->get(),
                 'statusList' => EmploymentStatus::orderBy('name')->get(),

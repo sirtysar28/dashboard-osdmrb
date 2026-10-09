@@ -261,7 +261,8 @@ class MasterDataSeeder extends Seeder
             ['STR-ITJEN', 'Inspektur Jenderal', 'STRUKTURAL', 'ESELON_I'],
             /* ---- Struktural Eselon II ---- */
             ['STR-DIREKTUR', 'Direktur', 'STRUKTURAL', 'ESELON_II'],
-            ['STR-SETDITJEN', 'Sekretaris Direktur Jenderal', 'STRUKTURAL', 'ESELON_II'],
+            // "Sekretaris Direktur Jenderal" DIHAPUS — penamaan salah
+            // (Catatan 7 Okt 2026); nama resmi: Sekretaris Direktorat Jenderal
             ['STR-KAPUS', 'Kepala Pusat', 'STRUKTURAL', 'ESELON_II'],
             ['STR-KABIRO', 'Kepala Biro', 'STRUKTURAL', 'ESELON_II'],
             ['STR-INSPEKTUR', 'Inspektur', 'STRUKTURAL', 'ESELON_II'],

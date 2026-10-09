@@ -37,7 +37,7 @@ class MasterDataController extends Controller
 
         /* Koleksi LENGKAP (tanpa pagination) untuk kebutuhan dropdown
            & pilihan form di seluruh tab. */
-        $allUnits = Unit::orderBy('level')->ordered()->get();
+        $allUnits = Unit::ordered()->get();
         $allPositionTypes = PositionType::orderBy('name')->get();
         $allJobLevels = JobLevel::orderBy('sort_order')->get();
 

@@ -128,7 +128,7 @@ class EmployeeController extends Controller
         return view('employees.non-asn-form', [
             'employee' => new Employee(['is_active' => true]),
             'categories' => $this->nonAsnCategories(),
-            'unitList' => Unit::where('level', '>', 1)->ordered()->get(),
+            'unitList' => Unit::where('level', '!=', 'KEMENTERIAN')->ordered()->get(),
         ]);
     }
 
@@ -163,7 +163,7 @@ class EmployeeController extends Controller
         return view('employees.non-asn-form', [
             'employee' => $employee,
             'categories' => $this->nonAsnCategories(),
-            'unitList' => Unit::where('level', '>', 1)->ordered()->get(),
+            'unitList' => Unit::where('level', '!=', 'KEMENTERIAN')->ordered()->get(),
         ]);
     }
 
@@ -279,7 +279,9 @@ class EmployeeController extends Controller
             'rankList' => Rank::orderBy('sort_order')->get(),
             'educationList' => EducationLevel::orderBy('sort_order')->get(),
             'campusList' => Campus::orderBy('sort_order')->orderBy('name')->get(),
-            'unitList' => Unit::orderBy('level')->ordered()->get(),
+            // urutan pilihan unit kerja mengikuti struktur resmi kementerian
+            // (Catatan 7 Okt 2026): Eselon I → II → III → Balai, bukan abjad level
+            'unitList' => Unit::ordered()->get(),
             'positionList' => Position::with('positionType')->orderBy('name')->get(),
             'educationDefaults' => $this->educationFieldDefaults(new Employee(), null),
         ]);
@@ -382,7 +384,7 @@ class EmployeeController extends Controller
             'rankList' => Rank::orderBy('sort_order')->get(),
             'educationList' => EducationLevel::orderBy('sort_order')->get(),
             'campusList' => $campusList,
-            'unitList' => Unit::orderBy('level')->ordered()->get(),
+            'unitList' => Unit::ordered()->get(),
             'positionList' => Position::with('positionType')->orderBy('name')->get(),
             'educationDefaults' => $this->educationFieldDefaults($employee, $campusList),
         ]);

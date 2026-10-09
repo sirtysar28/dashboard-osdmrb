@@ -104,6 +104,11 @@ class DashboardService
      * Filter yang relevan: unit kerja (es1/es2/balai + turunannya)
      * dan pencarian nama/NIP.
      *
+     * Catatan Masukan 7 Okt 2026 — penggunaan filter seperti Pendidikan S3
+     * TIDAK BOLEH tergabung dengan data Non ASN: pegawai Non ASN tidak
+     * memiliki tingkat pendidikan/golongan/jenis kelamin pada data, sehingga
+     * saat filter tersebut dipakai jumlah Non ASN otomatis 0.
+     *
      * Unit kerja pegawai Non ASN tidak diketahui → seluruhnya dianggap
      * berada di SEKRETARIAT JENDERAL (termasuk yang unit_id-nya NULL),
      * sehingga kartu Non ASN ikut berubah ketika filter diganti-ganti.
@@ -118,6 +123,14 @@ class DashboardService
         // ikut dicentang; bila user memilih status ASN lain saja → 0.
         $statusAsn = collect($filters['status_asn'] ?? [])->filter()->map(fn ($v) => trim((string) $v))->values();
         if ($statusAsn->isNotEmpty() && ! $statusAsn->contains(Employee::TYPE_NON_ASN)) {
+            $query->whereRaw('1 = 0');
+        }
+
+        // Filter yang hanya melekat pada data ASN (pendidikan, golongan,
+        // jenis kelamin) → Non ASN tidak mungkin cocok, jadi 0.
+        $asnOnly = collect([$filters['education'] ?? [], $filters['rank'] ?? [], $filters['gender'] ?? []])
+            ->flatten()->filter()->values();
+        if ($asnOnly->isNotEmpty()) {
             $query->whereRaw('1 = 0');
         }
 

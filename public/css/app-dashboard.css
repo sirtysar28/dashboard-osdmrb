@@ -2865,3 +2865,98 @@ a.stat-card-link { text-decoration: none; color: inherit; display: block; height
     color: var(--osdmrb-primary);
     font-weight: 600;
 }
+
+/* =========================================================
+   CATATAN MASUKAN 7 OKT 2026 — penyempurnaan tampilan mobile
+   (desain & tata letak desktop TIDAK berubah; hanya layar kecil)
+   ========================================================= */
+
+/* Avatar kecil pada popup daftar pegawai pemangku jabatan
+   (menu Analisis Jabatan Fungsional — jumlah pegawai diklik). */
+.holder-avatar {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--osdmrb-primary), var(--osdmrb-primary-light));
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Tombol jumlah pegawai: muat dalam kolom tabel sempit tanpa terpotong */
+.holders-btn { white-space: nowrap; }
+
+@media (max-width: 575.98px) {
+    /* Cegah iOS auto-zoom saat fokus input (font kontrol < 16px) */
+    .form-control, .form-select, .input-group-text,
+    .form-control-sm, .form-select-sm {
+        font-size: 16px;
+    }
+
+    /* Gulir tabel & daftar dropdown lebih mulus di layar sentuh */
+    .table-responsive,
+    .ms-dropdown .ms-options,
+    .ss-dropdown .ss-options,
+    .org-zoom-viewport,
+    .org-tree-scroll {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+    }
+
+    /* Tombol aksi baris tabel tidak terpotong saat kolom sempit */
+    .table .btn-sm { white-space: nowrap; }
+
+    /* Popup daftar pegawai: baris lebih lega untuk sentuhan */
+    .holders-list .list-group-item { padding: .7rem .9rem; }
+
+    /* Baris filter analisis jabatan: tombol terapkan/reset full-width
+       (kolom form sudah ditumpuk lewat kelas col-12 pada tiap view) */
+    .filter-actions .btn { min-height: 42px; }
+
+    /* Judul popup panjang (nama jabatan) tetap terbaca */
+    #daftarPegawaiModal .modal-title {
+        font-size: 14.5px;
+        padding-right: 8px;
+    }
+}
+
+/* ---- Safe area (iPhone notch / home bar) ---- */
+@supports (padding: max(0px)) {
+    .chat-widget {
+        right: max(22px, env(safe-area-inset-right));
+        bottom: max(22px, env(safe-area-inset-bottom));
+    }
+
+    .app-footer-inner {
+        padding-left: max(26px, env(safe-area-inset-left));
+        padding-right: max(26px, env(safe-area-inset-right));
+    }
+
+    .form-footer {
+        bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    @media (max-width: 575.98px) {
+        .chat-widget {
+            right: max(14px, env(safe-area-inset-right));
+            bottom: max(14px, env(safe-area-inset-bottom));
+        }
+
+        .app-footer-inner {
+            padding-left: max(12px, env(safe-area-inset-left));
+            padding-right: max(12px, env(safe-area-inset-right));
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+        }
+
+        .chat-panel {
+            top: max(14px, env(safe-area-inset-top));
+            right: max(14px, env(safe-area-inset-right));
+            bottom: 80px;
+            left: max(14px, env(safe-area-inset-left));
+        }
+    }
+}

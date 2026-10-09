@@ -123,20 +123,37 @@
     </div>
 
     {{-- ================== PENDIDIKAN ================== --}}
+    {{-- Catatan 7 Okt 2026: riwayat dimulai dari Pendidikan 1 (S1/Diploma)
+         lalu Pendidikan 2 (S2) & 3 (S3), dan jenjangnya dituliskan
+         eksplisit (Diploma/Sarjana/Magister/Doktor). --}}
     <div class="sec">
         <h3>C. RIWAYAT PENDIDIKAN</h3>
         <table class="grid">
             <thead><tr><th style="width:26px">No</th><th>Jenjang</th><th>Kampus / Institusi &amp; Jurusan</th></tr></thead>
+             
             <tbody>
+            @if ($employee->education?->name === 'S3 / Doktor' or $employee->education?->name === 'S1 / Sarjana'  )
                 @foreach ([
-                    ['Pendidikan 1', $employee->education_2],
-                    ['Pendidikan 2', $employee->education_1],
-                    ['Pendidikan 3', $employee->education_3],
+                    ['Pendidikan 1 — Diploma / Sarjana (S1)', $employee->education_1],
+                    ['Pendidikan 2 — Magister (S2)', $employee->education_2],
+                    ['Pendidikan 3 — Doktor (S3)', $employee->education_3],
                 ] as $i => [$jenjang, $nilai])
                     @if ($nilai)
                         <tr><td>{{ $i + 1 }}</td><td>{{ $jenjang }}</td><td>{{ $nilai }}</td></tr>
                     @endif
                 @endforeach
+            @else
+                 @foreach ([
+                    ['Pendidikan 1 — Diploma / Sarjana (S1)', $employee->education_2],
+                    ['Pendidikan 2 — Magister (S2)', $employee->education_1],
+                    ['Pendidikan 3 — Doktor (S3)', $employee->education_3],
+                ] as $i => [$jenjang, $nilai])
+                    @if ($nilai)
+                        <tr><td>{{ $i + 1 }}</td><td>{{ $jenjang }}</td><td>{{ $nilai }}</td></tr>
+                    @endif
+                @endforeach
+            @endif
+            
                 @if (! $employee->education && ! $employee->education_1 && ! $employee->education_2 && ! $employee->education_3)
                     <tr><td colspan="3" style="text-align:center">Belum ada data pendidikan.</td></tr>
                 @endif

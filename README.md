@@ -15,6 +15,7 @@ Format `MAJOR.FEATURE.PATCH` (env `APP_VERSION`, tampil di footer aplikasi):
 
 | Versi | Tanggal | Ringkasan |
 |---|---|---|
+| `1.0.3` | 9 Okt 2026 | **Catatan Masukan 7 Okt** — urutan pilihan unit kerja dirapikan di semua dropdown (Eselon I dashboard, form pegawai ASN/Non ASN, master data), filter pendidikan/golongan/gender tidak lagi tergabung Non ASN, CV riwayat pendidikan dimulai dari Pendidikan 1 + jenjang dituliskan (Diploma/Sarjana/Magister/Doktor, migrasi `2026_10_09_000002` merapikan data terbalik), analis jabatan fungsional: pemangku diganti jumlah pegawai yang bisa diklik (popup daftar pegawai), formasi kosong tidak dimunculkan (fungsional & struktural), jabatan salah nama "Sekretaris Direktur Jenderal" dihapus, penyempurnaan tampilan mobile (input 16px anti-zoom iOS, safe-area, tombol filter mudah di-tap) |
 | `1.0.2` | 7 Okt 2026 | **Catatan Masukan 30 Sept** — urutan unit kerja resmi (eselon I–III & balai, migrasi `sort_order`), card hasil filter dashboard dipindah ke atas, filter unit kerja "kosong", urutan riwayat pendidikan (P1=S1) + Tingkat terakhir pindah ke Data Personal CV, dropdown perguruan tinggi dengan kotak pencarian, analis jabatan fungsional/struktural/pelaksana (kolom Nomor, filter nama jabatan & jenjang, pagination, nama jabatan umum, data pelaksana dari data pegawai), menu SOP Kementerian → Dokumen Kepegawaian, riwayat diklat wajib upload sertifikat, pencarian cuti khusus Admin Bagian & Super Admin |
 | `1.0.1` | 28 Sep 2026 | Paritas filter ASN↔Direktori, analis jabatan fungsional/struktural mengenali semua jabatan + pemangku, kop form cuti format resmi |
 | `1.0.0` | ≤ 25 Sep 2026 | Baseline — seluruh update hingga 25 September 2026 (chat internal, analisis jabatan, formulir cuti, dedupe unit kerja, dll.) |
@@ -727,7 +728,7 @@ Pegawai ASN & Direktori) menampilkan pegawai yang `unit_id`-nya masih kosong —
 memudahkan Admin Pegawai melengkapi data secara mandiri.
 
 ### 5 & 7. Riwayat pendidikan: Pendidikan 1 = S1, tanpa "Tingkat"
-- Migrasi `2026_10_07_000002` merapikan data lama: jenjang terendah (S1/D4/D3) ke
+- Migrasi `2026_10_09_000002` merapikan data lama: jenjang terendah (S1/D4/D3) ke
   Pendidikan 1, disusul S2, lalu S3.
 - Label form menjadi "Pendidikan 1 (S1)", "Pendidikan 2 (S2)", "Pendidikan 3 (S3)";
   baris "Tingkat" di halaman detail pegawai dihapus.
@@ -773,3 +774,50 @@ php artisan view:clear
 ```
 
 Smoke test: `tests/Feature/UpdateSeptember30Test.php` (13 test).
+
+---
+
+## 🚀 Update 9 Oktober 2026 (v1.0.3) — Catatan Masukan 7 Okt 2026
+
+### 1. Urutan pilihan unit kerja eselon I–III (penyempurnaan)
+Urutan resmi (migrasi `sort_order`) kini dipakai di **semua** pilihan unit kerja:
+- Filter **Eselon I dashboard** (sebelumnya masih urut nama).
+- **Form pegawai ASN** (tambah/ubah — sebelumnya Balai mendahului Eselon I).
+- **Form pegawai Non ASN** (sekaligus memperbaiki filter level yang kosong di MySQL).
+- Dropdown induk unit pada **Master Data**.
+
+### 2. Filter pendidikan tidak tergabung dengan data Non ASN
+Saat filter **Pendidikan** (mis. S3), **Golongan**, atau **Jenis Kelamin** dipakai,
+pegawai Non ASN tidak memiliki data tersebut sehingga kartu **Non ASN otomatis 0**
+dan **Total Keseluruhan Pegawai** hanya berisi ASN yang cocok filter
+(`DashboardService::nonAsnQuery()`).
+
+### 3. CV — Riwayat Pendidikan dimulai dari Pendidikan 1 + jenjang
+- Baris pertama = **Pendidikan 1 — Diploma / Sarjana (S1)**, lalu
+  **Pendidikan 2 — Magister (S2)**, **Pendidikan 3 — Doktor (S3)**.
+- Migrasi `2026_10_09_000002` merapikan data lama yang terbalik
+  (jenjang terendah → `education_1`), dikenali dari teks jenjang pada isian.
+
+### 4. Analis jabatan fungsional — jumlah pegawai bisa diklik
+Kolom **Pemangku** diganti **Jumlah Pegawai**; angkanya berupa tombol yang
+membuka **popup daftar pegawai** pemangku jabatan (nama + unit kerja, tautan ke
+profil pegawai).
+
+### 5. Formasi kosong tidak dimunculkan (fungsional & struktural)
+Selain menu fungsional (sudah), menu **Analisis Jabatan Struktural** kini juga
+menyembunyikan jabatan umum yang tidak memiliki pemangku sama sekali.
+
+### 6. Jabatan "Sekretaris Direktur Jenderal" dihapus
+Penamaan salah (seharusnya *Sekretaris **Direktorat** Jenderal*) dihapus dari
+master (migrasi `2026_10_09_000001` + seeder); nama jabatan salah ketik pada
+data pegawai ikut diluruskan.
+
+### 7. Penyempurnaan tampilan mobile (tanpa mengubah desain)
+- Input form 16px di layar kecil — mencegah auto-zoom iOS.
+- Dukungan **safe-area** (notch/home bar iPhone) untuk widget chat, footer,
+  panel chat & baris aksi form.
+- Filter analisis jabatan menumpuk rapi di HP (tombol terapkan/reset mudah di-tap).
+- Gulir tabel/dropdown lebih mulus di layar sentuh; tombol tabel tidak terpotong.
+
+**Deploy:** `php artisan migrate` (2 migrasi baru), `composer install --no-dev`,
+`php artisan config:clear && php artisan route:clear && php artisan view:clear`.

@@ -183,7 +183,9 @@ class UpdateSeptember30Test extends TestCase
 
         // RefreshDatabase memigrasi SEBELUM pegawai dibuat — jalankan ulang
         // logika migrasi pengurutan untuk data uji ini
-        $migration = require database_path('migrations/2026_10_07_000002_urutkan_riwayat_pendidikan_pegawai.php');
+        // (migrasi 2026_10_07_000002 belum pernah di-commit; dibuat ulang
+        //  sebagai 2026_10_09_000002 — Catatan 7 Okt 2026 butir 3)
+        $migration = require database_path('migrations/2026_10_09_000002_urutkan_riwayat_pendidikan_pegawai.php');
         $migration->up();
 
         $employee->refresh();
@@ -209,12 +211,13 @@ class UpdateSeptember30Test extends TestCase
         $blade = file_get_contents(resource_path('views/employees/cv.blade.php'));
 
         // "Tingkat Terakhir" sudah tidak ada di Riwayat Pendidikan...
-        $posRiwayat = mb_strpos($blade, 'R IWAYAT PENDIDIKAN');
+        $posRiwayat = mb_strpos($blade, 'RIWAYAT PENDIDIKAN');
         $this->assertNotFalse($posRiwayat);
         $this->assertFalse(mb_strpos(mb_substr($blade, $posRiwayat), 'Tingkat Terakhir'));
 
-        // ...dan Pendidikan 1 muncul pertama
-        $this->assertGreaterThan($posRiwayat, mb_strpos($blade, "['Pendidikan 1', \$employee->education_1]"));
+        // ...dan Pendidikan 1 (education_1) muncul pertama — Catatan 7 Okt 2026:
+        // jenjang dituliskan eksplisit (Diploma/Sarjana/Magister/Doktor)
+        $this->assertGreaterThan($posRiwayat, mb_strpos($blade, "['Pendidikan 1 — Diploma / Sarjana (S1)', \$employee->education_1]"));
 
         // Tingkat Terakhir dipindah ke bagian Data Personal
         $posPersonal = mb_strpos($blade, 'DATA PERSONAL');
