@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Analisis Jabatan Struktural')
+@section('page_title', 'Data Jabatan Struktural')
 @section('page_subtitle', 'Pemetaan formasi & pemangku jabatan struktural (Eselon I, II, III, IV)')
 
 @section('content')
@@ -183,7 +183,7 @@
 <div class="row g-3 mt-0">
     <div class="col-lg-12">
         <div class="chart-card">
-            <h5><i class="bi bi-info-circle me-2"></i>Catatan Analisis</h5>
+            <h5><i class="bi bi-info-circle me-2"></i>Catatan Data</h5>
             <ul class="small text-muted mb-0 ps-3">
                 <li class="mb-2">Formasi struktural kosong menjadi bahan pengisian jabatan melalui sistem merit &amp; manajemen talenta.</li>
                 <li class="mb-2">Kesenjangan beban kerja antar unit eselon II perlu ditinjau pada penyusunan formasi berikutnya.</li>

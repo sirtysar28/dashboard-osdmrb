@@ -660,4 +660,248 @@ class DashboardService
 
         return $months[(int) $date->format('n')];
     }
+
+    /**
+     * Nama bulan Indonesia dari nomor bulan (1-12).
+     */
+    public static function monthNameById(int $month): string
+    {
+        $months = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        return $months[$month] ?? (string) $month;
+    }
+
+    /* ================= DRILL-DOWN INFOGRAFIS (21 Okt 2026) =================
+       Klik angka/segmen grafik dashboard -> daftar pegawai penyusun angka.
+       Kategori: education, age, gender, swimming, retirement, status,
+       promotion, salary_raise, unit. */
+
+    /**
+     * Daftar pegawai penyusun sebuah segmen grafik dashboard.
+     *
+     * @return \Illuminate\Support\Collection<int, array>
+     */
+    /**
+     * Daftar pegawai untuk popup drill-down grafik (seragam untuk semua
+     * kategori) + pencarian popup: nama / NIP / jabatan saja
+     * (Catatan Masukan 23 Okt 2026).
+     */
+    public function getDrilldownList(Builder $query, string $category, ?string $value, ?string $search = null): \Illuminate\Support\Collection
+    {
+        if ($value === null || $value === '') {
+            return collect();
+        }
+
+        $query = clone $query;
+
+        // pencarian khusus popup — hanya kolom nama, NIP, dan jabatan
+        if ($search !== null && ($search = trim($search)) !== '') {
+            $like = "%{$search}%";
+            $query->where(function (Builder $q) use ($like) {
+                $q->where('employees.name', 'like', $like)
+                    ->orWhere('employees.nip', 'like', $like)
+                    ->orWhere('employees.position_name', 'like', $like)
+                    ->orWhereHas('currentPosition.position', fn (Builder $p) => $p->where('positions.name', 'like', $like));
+            });
+        }
+
+        switch ($category) {
+            case 'education':
+                $level = EducationLevel::where('name', $value)->first();
+                $query->where('education_level_id', $level?->id ?? 0);
+                break;
+
+            case 'age':
+                $groups = ['20-30' => [0, 30], '31-40' => [31, 40], '41-50' => [41, 50], '51-58' => [51, 58], '>58' => [59, 200]];
+                [$min, $max] = $groups[$value] ?? [null, null];
+
+                return $this->drilldownRows($query->whereNotNull('birth_date')->get())
+                    ->filter(fn ($row) => $row['age'] !== null && $row['age'] >= $min && $row['age'] <= $max)
+                    ->values();
+
+            case 'gender':
+                $query->where('gender', $value === 'Perempuan' ? 'P' : 'L');
+                break;
+
+            case 'swimming':
+                if ($value === 'Belum Diisi') {
+                    // "Belum Diisi" = NULL atau nilai selain lulus/belum
+                    // (konsisten dengan perhitungan grafik kemampuan renang)
+                    $query->where(fn (Builder $q) => $q
+                        ->whereNull('swimming_skill')
+                        ->orWhereNotIn('swimming_skill', ['lulus', 'belum']));
+                } else {
+                    $query->where('swimming_skill', match ($value) {
+                        'Lulus Ujian Renang' => 'lulus',
+                        'Belum Lulus Ujian' => 'belum',
+                        default => '___null___',
+                    });
+                }
+                break;
+
+            case 'retirement':
+                $query->whereNotNull('retirement_date')
+                    ->whereYear('retirement_date', (int) $value);
+                break;
+
+            case 'status':
+                $map = $this->statusIdMap();
+
+                if ($value === 'Pensiun') {
+                    $query->whereNotNull('retirement_date')
+                        ->where('retirement_date', '<', today()->toDateString());
+                } elseif ($value === 'CPNS') {
+                    $query->where(function (Builder $w) use ($map) {
+                        if (! empty($map['cpns'])) {
+                            $w->whereIn('employment_status_id', $map['cpns']);
+                        }
+
+                        if (! empty($map['asn'])) {
+                            $w->orWhere(fn (Builder $a) => $a
+                                ->whereIn('employment_status_id', $map['asn'])
+                                ->whereNull('tmt_pns'));
+                        }
+                    });
+                } else {
+                    $query->whereHas('employmentStatus', fn ($q) => $q->where('name', $value));
+                }
+                break;
+
+            case 'promotion':
+                return $this->drilldownRows(
+                    $this->promotionCandidates($query),
+                    fn (Employee $e) => $e->next_promotion_estimated?->year
+                )->filter(fn ($row) => ((int) $row['due_year']) === (int) $value)->values();
+
+            case 'salary_raise':
+                return $this->drilldownRows(
+                    $this->salaryRaiseCandidates($query),
+                    fn (Employee $e) => $e->next_salary_raise?->year
+                )->filter(fn ($row) => ((int) $row['due_year']) === (int) $value)->values();
+
+            case 'unit':
+                $unit = Unit::where('name', $value)->first();
+
+                if (! $unit) {
+                    return collect();
+                }
+
+                $query->whereIn('unit_id', $this->unitDescendants(collect([$unit->id])));
+                break;
+
+            default:
+                return collect();
+        }
+
+        return $this->drilldownRows($query->get());
+    }
+
+    /**
+     * Susun baris daftar pegawai seragam untuk popup drill-down.
+     *
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @param  callable|null  $dueYear  tahun jatuh tempo (kenaikan pangkat / KGB)
+     * @return \Illuminate\Support\Collection<int, array>
+     */
+    private function drilldownRows(\Illuminate\Support\Collection $employees, ?callable $dueYear = null): \Illuminate\Support\Collection
+    {
+        return $employees->sortBy(fn ($e) => mb_strtolower($e->name))->values()
+            ->map(fn (Employee $e) => [
+                'id' => $e->id,
+                'name' => $e->name,
+                'nip' => $e->nip,
+                'position' => $e->position_name ?: ($e->currentPosition?->position?->name ?? '-'),
+                'unit' => $e->unit?->name ?? '-',
+                'status' => $e->display_status,
+                'age' => $e->age,
+                'due_year' => $dueYear ? $dueYear($e) : null,
+            ]);
+    }
+
+    /* ================= ULANG TAHUN PEGAWAI (21 Okt 2026) =================
+       Informasi pegawai berulang tahun bulan ini / beberapa bulan ke depan
+       (maks. 5 item per halaman + paginasi); tersedia dalam bentuk daftar
+       maupun grafik per bulan. */
+
+    /**
+     * Daftar & rekap ulang tahun pegawai.
+     *
+     * @param  int  $months  jangkauan bulan ke depan (1 = bulan ini s.d. akhir bulan)
+     * @param  int  $perPage maksimal item per halaman (default 5)
+     * @param  int|null  $month  batasi ke satu bulan tertentu (nomor bulan)
+     * @param  int  $page  halaman daftar aktif
+     * @return array{items: array, total: int, page: int, last_page: int, monthly: array}
+     */
+    public function getBirthdays(Builder $query, int $months = 1, int $perPage = 5, ?int $month = null, int $page = 1): array
+    {
+        $months = max(1, min(12, $months));
+        $today = today()->copy()->startOfDay();
+        $windowEnd = $today->copy()->addMonths($months)->endOfMonth();
+
+        $employees = (clone $query)
+            ->whereNotNull('birth_date')
+            ->get()
+            ->map(function (Employee $e) use ($today) {
+                $birth = $e->birth_date;
+
+                // ulang tahun berikutnya (tahun berjalan; bila sudah lewat -> tahun depan)
+                $next = $today->copy()->setMonth($birth->month)->setDay($birth->day);
+
+                if ($next->lt($today)) {
+                    $next->addYear();
+                }
+
+                $e->setAttribute('next_birthday', $next);
+                $e->setAttribute('turning_age', (int) $next->diffInYears($birth));
+
+                return $e;
+            })
+            // bulan spesifik: hanya pegawai yang berulang tahun pada bulan tsb.
+            ->when($month !== null, fn ($c) => $c->filter(fn ($e) => $e->next_birthday->month === (int) $month))
+            // dalam jangkauan periode terpilih
+            ->filter(fn ($e) => $e->next_birthday->lte($windowEnd))
+            ->sortBy(fn ($e) => $e->next_birthday->getTimestamp())
+            ->values();
+
+        // rekap jumlah ulang tahun per bulan (untuk mode grafik)
+        $monthly = [];
+
+        for ($i = 0; $i < $months; $i++) {
+            $cursor = $today->copy()->addMonths($i);
+
+            $monthly[] = [
+                'month' => $cursor->month,
+                'label' => self::monthNameById($cursor->month).' '.$cursor->year,
+                'short' => mb_substr(self::monthNameById($cursor->month), 0, 3).' '.$cursor->format('y'),
+                'total' => $employees->filter(fn ($e) => $e->next_birthday->isSameMonth($cursor) && $e->next_birthday->year === $cursor->year)->count(),
+            ];
+        }
+
+        $total = $employees->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, $page), $lastPage);
+
+        $items = $employees->slice(($page - 1) * $perPage, $perPage)->values()
+            ->map(fn (Employee $e) => [
+                'id' => $e->id,
+                'name' => $e->name,
+                'nip' => $e->nip,
+                'unit' => $e->unit?->name ?? '-',
+                'position' => $e->position_name ?: '-',
+                'date' => $e->next_birthday->translatedFormat('d M Y'),
+                'date_display' => $e->next_birthday->translatedFormat('d').' '.self::monthNameById($e->next_birthday->month).' '.$e->next_birthday->year,
+                'turning_age' => $e->turning_age,
+                'days_left' => (int) $today->diffInDays($e->next_birthday),
+            ])->all();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'monthly' => $monthly,
+            'per_page' => $perPage,
+        ];
+    }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\LetterTypeController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\PetaJabatanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SurveyController;
@@ -70,6 +71,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/modul/analisis-jabatan-fungsional', [ModuleController::class, 'analisisJabatan'])->name('modules.analisis-jabatan');
         Route::get('/modul/analisis-jabatan-struktural', [ModuleController::class, 'analisisJabatanStruktural'])->name('modules.analisis-jabatan-struktural');
         Route::get('/modul/analisis-jabatan-pelaksana', [ModuleController::class, 'analisisJabatanPelaksana'])->name('modules.analisis-jabatan-pelaksana');
+        Route::get('/modul/peta-jabatan', [PetaJabatanController::class, 'index'])->name('modules.peta-jabatan');
+        Route::get('/modul/peta-jabatan/export', [PetaJabatanController::class, 'export'])->name('modules.peta-jabatan.export');
         Route::get('/modul/reformasi-birokrasi', [ModuleController::class, 'reformasiBirokrasi'])->name('modules.reformasi-birokrasi');
         Route::get('/modul/manajemen-talenta', [ModuleController::class, 'manajemenTalenta'])->name('modules.manajemen-talenta');
         Route::get('/modul/diklat', [ModuleController::class, 'diklat'])->name('modules.diklat');
@@ -123,10 +126,18 @@ Route::middleware('auth')->group(function () {
         Route::post('/cuti', [LeaveRequestController::class, 'store'])->name('leaves.store');
         Route::get('/cuti/{leave}', [LeaveRequestController::class, 'show'])->name('leaves.show');
         Route::get('/cuti/{leave}/cetak', [LeaveRequestController::class, 'print'])->name('leaves.print');
-        Route::post('/cuti/{leave}/verifikasi', [LeaveRequestController::class, 'verify'])->name('leaves.verify');
         Route::post('/cuti/{leave}/setujui', [LeaveRequestController::class, 'approve'])->name('leaves.approve');
         Route::post('/cuti/{leave}/tolak', [LeaveRequestController::class, 'reject'])->name('leaves.reject');
         Route::delete('/cuti/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');
+
+        /* ---- REKAP & MONITORING CUTI (Admin, Biro SDM & Super Admin) ----
+           Riwayat + jumlah cuti yang telah diambil pegawai dengan filter
+           rentang tanggal dan unit kerja (Catatan Masukan 21 Okt 2026).
+           Didaftar sebelum /cuti/{leave} agar tidak tertangkap binding. */
+        Route::middleware('role:admin,biro_sdm,super_admin')->group(function () {
+            Route::get('/cuti/rekap', [LeaveRequestController::class, 'rekap'])->name('leaves.rekap');
+            Route::get('/cuti/rekap/export', [LeaveRequestController::class, 'rekapExport'])->name('leaves.rekap.export');
+        });
     });
 
     /* ================= LAYANAN PERSURATAN ================= */
@@ -163,6 +174,10 @@ Route::middleware('auth')->group(function () {
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/api/dashboard/statistics', [DashboardController::class, 'statistics'])->name('dashboard.statistics');
+
+        // Popup daftar pegawai & informasi ulang tahun (Catatan 21 Okt 2026)
+        Route::get('/api/dashboard/drilldown', [DashboardController::class, 'drilldown'])->name('dashboard.drilldown');
+        Route::get('/api/dashboard/birthdays', [DashboardController::class, 'birthdays'])->name('dashboard.birthdays');
 
         // Manajemen pegawai (ASN)
         Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Analisis Jabatan Pelaksana')
+@section('page_title', 'Data Jabatan Pelaksana')
 @section('page_subtitle', 'Pemetaan formasi & pemangku jabatan pelaksana (fungsional umum)')
 
 @section('content')
@@ -183,7 +183,7 @@
 <div class="row g-3 mt-0">
     <div class="col-lg-12">
         <div class="chart-card">
-            <h5><i class="bi bi-info-circle me-2"></i>Catatan Analisis</h5>
+            <h5><i class="bi bi-info-circle me-2"></i>Catatan Data</h5>
             <ul class="small text-muted mb-0 ps-3">
                 <li class="mb-2">Jabatan pelaksana mencakup pegawai non-eselon &amp; non-fungsional (pelaksana murni); jenjang Penyelia dan Terampil tergolong fungsional.</li>
                 <li class="mb-2">Jabatan dengan total pegawai 0 (kosong) tidak ditampilkan pada tabel — hanya jabatan yang ada pemangkunya.</li>

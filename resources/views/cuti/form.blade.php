@@ -5,6 +5,26 @@
 
 @section('content')
 
+@php
+    /* Ketentuan jenis cuti per status kepegawaian (Catatan 21 Okt 2026):
+     * PNS/CPNS : Tahunan, Besar, Sakit, Melahirkan, Alasan Penting, Bersama, CLTN;
+     * PPPK     : Tahunan, Sakit, Melahirkan, Bersama;
+     * Non ASN  : tidak dapat mengajukan cuti. */
+    $isNonAsnSubmitter = $defaultScheme === 'NON_ASN';
+@endphp
+
+@if ($isNonAsnSubmitter)
+    <div class="alert alert-warning d-flex align-items-start gap-2">
+        <i class="bi bi-exclamation-triangle fs-5 mt-1"></i>
+        <div>
+            <strong>Pegawai Non ASN tidak dapat mengajukan cuti melalui aplikasi ini.</strong>
+            <p class="mb-0 small">Ketentuan cuti PNS, PPPK, dan Non ASN berbeda. Layanan pengajuan cuti
+            hanya tersedia bagi pegawai ASN (PNS/CPNS) dan PPPK. Silakan hubungi Biro OSDMRB
+            untuk informasi lebih lanjut.</p>
+        </div>
+    </div>
+@endif
+
 <div class="form-narrow">
 <form method="POST" action="{{ route('leaves.store') }}">
     @csrf
@@ -27,6 +47,13 @@
                     </div>
                     <div class="form-text" id="employeeSelectedText"></div>
                     <small class="text-muted d-block mt-1">Terisi otomatis dengan pegawai yang sedang login — ubah hanya bila mengajukan untuk pegawai lain.</small>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="w-100 border rounded-3 px-3 py-2 bg-light">
+                        <small class="text-muted d-block">Status kepegawaian</small>
+                        <span class="fw-semibold" id="fScheme">{{ $defaultSchemeLabel ?? '-' }}</span>
+                        <small class="text-muted d-block mt-1">Jenis cuti menyesuaikan ketentuan status ini.</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -67,10 +94,17 @@
     {{-- ================= BAGIAN II : JENIS CUTI YANG DIAMBIL ================= --}}
     <div class="form-card mb-3">
         <h5><i class="bi bi-2-circle-fill me-2"></i>JENIS CUTI YANG DIAMBIL <span class="text-danger">*</span></h5>
-        <p class="small text-muted mb-3">Pilih salah satu dengan memberi tanda centang (v).</p>
-        <div class="row g-2">
+        <p class="small text-muted mb-1">Pilih salah satu dengan memberi tanda centang (v).</p>
+        <p class="small text-muted mb-3">
+            Jenis cuti menyesuaikan ketentuan status kepegawaian:
+            <strong>PNS/CPNS</strong> — 7 jenis;
+            <strong>PPPK</strong> — Cuti Tahunan, Sakit, Melahirkan &amp; Bersama;
+            <strong>Non ASN</strong> — tidak dapat mengajukan cuti.
+        </p>
+        <div class="row g-2" id="jenisCutiWrap">
             @foreach (\App\Models\LeaveRequest::typeOptions() as $value => $label)
-                <div class="col-md-6">
+                @php($scheme = in_array($value, ['besar', 'alasan_penting', 'cltn']) ? 'PNS' : 'BOTH')
+                <div class="col-md-6 cuti-type-option" data-scheme="{{ $scheme }}">
                     <label class="form-check cuti-check d-flex align-items-center gap-2 border rounded-3 px-3 py-2">
                         <input class="form-check-input m-0" type="radio" name="type" value="{{ $value }}"
                                {{ old('type') === $value ? 'checked' : '' }} required>
@@ -78,6 +112,10 @@
                     </label>
                 </div>
             @endforeach
+        </div>
+        <div class="alert alert-warning small mt-3 mb-0" id="nonAsnWarning" style="display:none">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Pegawai <strong>Non ASN</strong> tidak dapat mengajukan cuti — silakan pilih pegawai lain.
         </div>
     </div>
 
@@ -152,7 +190,7 @@
                             <input type="number" min="0" max="366" name="annual_n" id="annualN" class="form-control form-control-sm text-center fw-bold"
                                    value="{{ old('annual_n', $balances['n'] ?? null) }}" {{ $isPrivileged ? '' : 'readonly' }} placeholder="-">
                         </td>
-                        <td rowspan="6" class="align-middle">
+                        <td rowspan="7" class="align-middle">
                             @if ($isPrivileged)
                                 <textarea name="leave_note" rows="4" class="form-control form-control-sm"
                                           placeholder="Keterangan catatan cuti (diisi Admin / Biro SDM)...">{{ old('leave_note') }}</textarea>
@@ -161,11 +199,12 @@
                             @endif
                         </td>
                     </tr>
-                    <tr><td class="text-start">Cuti Besar</td><td colspan="3" class="text-muted">&ndash;</td></tr>
+                    <tr class="cuti-note-row" data-scheme="PNS"><td class="text-start">Cuti Besar</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                     <tr><td class="text-start">Cuti Sakit</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                     <tr><td class="text-start">Cuti Melahirkan</td><td colspan="3" class="text-muted">&ndash;</td></tr>
-                    <tr><td class="text-start">Cuti Karena Alasan Penting</td><td colspan="3" class="text-muted">&ndash;</td></tr>
-                    <tr><td class="text-start">Cuti di Luar Tanggungan Negara</td><td colspan="3" class="text-muted">&ndash;</td></tr>
+                    <tr class="cuti-note-row" data-scheme="PNS"><td class="text-start">Cuti Karena Alasan Penting</td><td colspan="3" class="text-muted">&ndash;</td></tr>
+                    <tr><td class="text-start">Cuti Bersama</td><td colspan="3" class="text-muted">&ndash;</td></tr>
+                    <tr class="cuti-note-row" data-scheme="PNS"><td class="text-start">Cuti di Luar Tanggungan Negara</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                 </tbody>
             </table>
         </div>
@@ -225,6 +264,9 @@
 
         var selectedId = hidden && hidden.value ? parseInt(hidden.value, 10) : null;
 
+        /* skema jenis cuti pegawai yang login (pegawai biasa — tanpa picker) */
+        var defaultScheme = @json($defaultScheme);
+
         function escapeHtml(text) {
             var div = document.createElement('div');
             div.textContent = text;
@@ -234,6 +276,36 @@
         function findEmployee(id) {
             return employees.find(function (x) { return x.id === id; }) || null;
         }
+
+        /* ---------- Ketentuan jenis cuti per status (Catatan 21 Okt 2026) ----------
+           PNS/CPNS: semua jenis; PPPK: Tahunan/Sakit/Melahirkan/Bersama;
+           Non ASN: tidak dapat mengajukan cuti (form dikunci). */
+        var submitBtn = document.querySelector('.form-footer button[type="submit"]');
+
+        function applyScheme(scheme) {
+            var isPns = scheme === 'PNS' || scheme === null || scheme === undefined;
+            var isNonAsn = scheme === 'NON_ASN';
+
+            document.querySelectorAll('#jenisCutiWrap .cuti-type-option').forEach(function (el) {
+                el.style.display = (!isPns && el.dataset.scheme === 'PNS') || isNonAsn ? 'none' : '';
+            });
+
+            document.querySelectorAll('.cuti-note-row').forEach(function (el) {
+                el.style.display = !isPns || isNonAsn ? 'none' : '';
+            });
+
+            var warn = document.getElementById('nonAsnWarning');
+            if (warn) warn.style.display = isNonAsn ? '' : 'none';
+
+            // Non ASN: kosongkan pilihan jenis cuti & kunci tombol kirim
+            if (isNonAsn) {
+                var checked = document.querySelector('input[name="type"]:checked');
+                if (checked) checked.checked = false;
+            }
+            if (submitBtn) submitBtn.disabled = isNonAsn;
+        }
+
+        applyScheme(picker ? null : defaultScheme);
 
         /* isi Bagian I + blok "Hormat saya" (input & teks) + sisa cuti tahunan (Bagian V) */
         function fill(id) {
@@ -247,6 +319,7 @@
                 fUnit: e ? (e.unit_name || '-') : '',
                 fTtdNama: e ? e.name : '-',
                 fTtdNip: e ? e.nip : '-',
+                fScheme: e ? (e.scheme_label || '-') : '-',
             };
 
             Object.keys(values).forEach(function (key) {
@@ -259,6 +332,9 @@
                     el.textContent = values[key];
                 }
             });
+
+            /* jenis cuti mengikuti status pegawai terpilih */
+            applyScheme(e ? e.scheme : null);
 
             /* sisa cuti tahunan N-2 / N-1 / N otomatis dari sistem per pegawai */
             ['annualN2', 'annualN1', 'annualN'].forEach(function (key, i) {

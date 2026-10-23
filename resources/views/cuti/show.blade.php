@@ -30,10 +30,11 @@
                 <tr><td class="text-muted">Unit Kerja (Eselon II)</td><td>{{ $leave->employee?->unit?->name ?? '-' }}</td></tr>
             </table>
 
-            {{-- ================= BAGIAN II : JENIS CUTI YANG DIAMBIL ================= --}}
+            {{-- ================= BAGIAN II : JENIS CUTI YANG DIAMBIL =================
+                 Jenis cuti menyesuaikan status pegawai (PNS/PPPK — Catatan 21 Okt 2026) --}}
             <h6 class="fw-bold" style="color: var(--osdmrb-primary)">II. JENIS CUTI YANG DIAMBIL</h6>
             <table class="table table-sm small mb-3">
-                @foreach (\App\Models\LeaveRequest::typeOptions() as $value => $label)
+                @foreach (\App\Models\LeaveRequest::typeOptionsFor($leave->employee) as $value => $label)
                     <tr>
                         <td style="width:34px" class="text-center">
                             @if ($leave->type === $value)
@@ -81,12 +82,13 @@
                             <td class="fw-semibold">{{ $leave->annual_n2 ?? '-' }}</td>
                             <td class="fw-semibold">{{ $leave->annual_n1 ?? '-' }}</td>
                             <td class="fw-semibold">{{ $leave->annual_n ?? '-' }}</td>
-                            <td rowspan="6" class="align-middle small text-start">{{ $leave->leave_note ?: $leave->note ?: '-' }}</td>
+                            <td rowspan="7" class="align-middle small text-start">{{ $leave->leave_note ?: $leave->note ?: '-' }}</td>
                         </tr>
                         <tr><td class="text-start">Cuti Besar</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                         <tr><td class="text-start">Cuti Sakit</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                         <tr><td class="text-start">Cuti Melahirkan</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                         <tr><td class="text-start">Cuti Karena Alasan Penting</td><td colspan="3" class="text-muted">&ndash;</td></tr>
+                        <tr><td class="text-start">Cuti Bersama</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                         <tr><td class="text-start">Cuti di Luar Tanggungan Negara</td><td colspan="3" class="text-muted">&ndash;</td></tr>
                     </tbody>
                 </table>

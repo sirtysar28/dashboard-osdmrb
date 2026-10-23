@@ -821,3 +821,66 @@ data pegawai ikut diluruskan.
 
 **Deploy:** `php artisan migrate` (2 migrasi baru), `composer install --no-dev`,
 `php artisan config:clear && php artisan route:clear && php artisan view:clear`.
+
+## 🚀 Update 23 Oktober 2026 (v1.1.0) — Catatan Masukan 21 Okt 2026
+
+### 1. Urutan & penamaan unit kerja eselon I–III (penyelarasan ulang)
+Migrasi `2026_10_23_000001` menyelaraskan urutan & nama unit dengan daftar struktur
+kementerian terbaru, termasuk **Pusat Pengembangan Sumber Daya Manusia Transmigrasi**
+(tambah marga "Transmigrasi") dan penegasan tingkat balai: **Balai Besar Pelatihan
+Yogyakarta setara Eselon II** mendahului tiga balai lain (Eselon III: Pekanbaru,
+Banjarmasin, Denpasar).
+
+### 2. Infografis bisa diklik → popup daftar pegawai
+Seluruh grafik dashboard kini **interaktif**: klik batang/segmen pada grafik
+Tingkat Pendidikan, Distribusi Usia, Proyeksi Pensiun, Kenaikan Pangkat, KGB,
+Gender, **Kemampuan Renang**, Status Kepegawaian, hingga angka **Distribusi Unit
+Kerja** memunculkan popup daftar pegawai penyusun angka tersebut (mengikuti filter
+aktif). Endpoint: `GET /api/dashboard/drilldown`.
+
+### 3. Informasi pegawai berulang tahun
+Kartu baru **"Ulang Tahun Pegawai"** di dashboard (kolom survei): menampilkan
+pegawai berulang tahun **bulan ini / 3 / 6 / 12 bulan ke depan**, maksimal
+**5 item per halaman** dengan tombol paginasi, serta mode tampilan
+**Daftar ⇄ Grafik** per bulan melalui dropdown. Klik batang bulan pada grafik
+untuk melihat daftar pegawainya. Endpoint: `GET /api/dashboard/birthdays`.
+
+### 4. Menu baru "Peta Jabatan" (46 jenis jabatan fungsional)
+Modul baru di sidebar **Modul Biro OSDMRB → Peta Jabatan**:
+- Data formasi jabatan fungsional (jumlah pegawai existing & kebutuhan per unit
+  kerja) dikelola melalui **import Excel** (Admin Bagian & Super Admin) — mode
+  *Ganti seluruh data* / *Perbarui*, dilengkapi unduh **template** & **ekspor**.
+- Visualisasi: statistik ringkasan (existing / kebutuhan / kekurangan / jenis
+  jabatan), grafik **Existing vs Kebutuhan** 12 kekurangan terbesar, tabel detail
+  dengan **rekomendasi pemenuhan otomatis** (pengusulan formasi, redistribusi,
+  sesuai), serta kartu Rekomendasi & Strategi Tindak Lanjut.
+- Filter **Unit Kerja (Eselon I)**, **Unit Kerja Balai** (beserta seluruh
+  turunannya), dan **Jabatan Fungsional**.
+
+### 5. Pengembangan layanan cuti
+- **Format unduhan PDF mengikuti formulir baku BKN** — tata letak form resmi
+  (Nomor/Kepada Yth., Bagian I–VIII bergaris, catatan kaki N/N-1/N-2) dengan
+  **varian otomatis PNS vs PPPK** sesuai status pemohon.
+- **Monitoring & pengelolaan**: daftar pengajuan kini punya filter **rentang
+  tanggal** dan **unit kerja** (+ ringkasan total/disetujui/menunggu/ditolu &
+  jumlah hari cuti diambil), serta halaman baru **Rekap Cuti Pegawai**
+  (`/cuti/rekap`) — jumlah cuti yang telah diambil per jenis & total hari per
+  pegawai, bisa diekspor ke Excel (Admin Bagian, Biro SDM & Super Admin).
+
+### 6. Nama menu "Analisis" → "Data"
+Menu sidebar & judul halaman: **Data Jabatan Fungsional**, **Data Jabatan
+Struktural**, **Data Jabatan Pelaksana** (termasuk heading "Catatan Data").
+
+### 7. Jenis cuti menyesuaikan status PNS / PPPK / Non ASN
+- **PNS/CPNS**: Cuti Tahunan, Besar, Sakit, Melahirkan, Alasan Penting,
+  **Bersama**, di Luar Tanggungan Negara (jenis **Cuti Bersama** ditambahkan).
+- **PPPK**: Tahunan, Sakit, Melahirkan, Bersama.
+- **Non ASN**: tidak dapat mengajukan cuti — formulir menampilkan pemberitahuan
+  dan tombol kirim terkunci; validasi juga ditegakkan di sisi server.
+- Formulir menampilkan kolom status kepegawaian; pilihan jenis cuti otomatis
+  menyesuaikan pegawai yang dipilih (juga saat Admin mengajukan untuk pegawai lain).
+
+**Deploy:** `php artisan migrate` (1 migrasi baru: tabel `position_maps` +
+penyelarasan unit), `composer install --no-dev`, `php artisan config:clear &&
+php artisan route:clear && php artisan view:clear`. Data peta jabatan diisi
+melalui menu **Peta Jabatan → Import Excel**.

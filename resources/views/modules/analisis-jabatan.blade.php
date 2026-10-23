@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page_title', 'Analisis Jabatan Fungsional')
+@section('page_title', 'Data Jabatan Fungsional')
 @section('page_subtitle', 'Pemetaan formasi & pemangku jabatan fungsional tertentu')
 
 @section('content')
@@ -175,7 +175,7 @@
 
 <!-- ================= CATATAN ANALISIS (selebar full) ================= -->
 <div class="chart-card mt-3">
-    <h5><i class="bi bi-info-circle me-2"></i>Catatan Analisis</h5>
+    <h5><i class="bi bi-info-circle me-2"></i>Catatan Data</h5>
     <div class="row g-3">
         <div class="col-lg-4">
             <div class="d-flex gap-2 h-100">

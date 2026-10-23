@@ -12,8 +12,11 @@
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 
     <!-- Bootstrap 5 + Icons + Chart.js -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    {{-- Aset dimuat lokal (public/vendor) — tidak lagi bergantung CDN jsdelivr
+       yang kerap diblokir/ lambat di jaringan kementerian, penyebab grafik
+       dashboard tidak muncul (Chart is not defined). --}}
+    <link href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <link href="{{ asset('css/app-dashboard.css') }}?v={{ filemtime(public_path('css/app-dashboard.css')) }}" rel="stylesheet">
 
     {{-- Tema warna dari Pengaturan (hanya diubah Administrator Utama) --}}
@@ -131,17 +134,22 @@
 
                 <div class="sidebar-section mt-2">Modul Biro OSDMRB</div>
 
+                {{-- Catatan 21 Okt 2026: menu ber-kata "Analisis" diganti "Data" --}}
                 <a href="{{ route('modules.analisis-jabatan') }}"
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan') ? 'active' : '' }}">
-                    <i class="bi bi-clipboard2-data"></i><span>Analisis Jabatan Fungsional</span>
+                    <i class="bi bi-clipboard2-data"></i><span>Data Jabatan Fungsional</span>
                 </a>
                 <a href="{{ route('modules.analisis-jabatan-struktural') }}"
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan-struktural') ? 'active' : '' }}">
-                    <i class="bi bi-diagram-2"></i><span>Analisis Jabatan Struktural</span>
+                    <i class="bi bi-diagram-2"></i><span>Data Jabatan Struktural</span>
                 </a>
                 <a href="{{ route('modules.analisis-jabatan-pelaksana') }}"
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan-pelaksana') ? 'active' : '' }}">
-                    <i class="bi bi-person-lines-fill"></i><span>Analisis Jabatan Pelaksana</span>
+                    <i class="bi bi-person-lines-fill"></i><span>Data Jabatan Pelaksana</span>
+                </a>
+                <a href="{{ route('modules.peta-jabatan') }}"
+                   class="menu-item {{ request()->routeIs('modules.peta-jabatan*') ? 'active' : '' }}">
+                    <i class="bi bi-map"></i><span>Peta Jabatan</span>
                 </a>
                 @if(\App\Models\Setting::menuVisible('reformasi_birokrasi'))
                     <a href="{{ route('modules.reformasi-birokrasi') }}"
@@ -375,7 +383,7 @@
     </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
 <script>
     /* ================== LOADER GLOBAL ==================

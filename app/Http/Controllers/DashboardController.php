@@ -78,4 +78,59 @@ class DashboardController extends Controller
             'salary_raise' => $this->service->getSalaryRaiseStats($query),
         ]);
     }
+
+    /**
+     * Popup daftar pegawai saat angka grafik/infografis dashboard diklik
+     * (Catatan Masukan 21 Okt 2026): pendidikan, usia, gender, renang,
+     * pensiun, status, kenaikan pangkat, KGB, hingga distribusi unit kerja.
+     * Catatan Masukan 23 Okt 2026: tampilan dibatasi 10 baris per halaman
+     * (paginasi) + pencarian popup (parameter `q`) atas nama/NIP/jabatan.
+     */
+    public function drilldown(Request $request)
+    {
+        $filters = $request->only(['es1', 'es2', 'balai', 'status_asn', 'rank', 'education', 'gender', 'search']);
+
+        $query = $this->service->applyFilters($this->service->baseQuery(), $filters);
+
+        $items = $this->service->getDrilldownList(
+            $query,
+            (string) $request->input('category', ''),
+            $request->input('value'),
+            (string) $request->input('q', '')
+        );
+
+        // paginasi popup: maks. 10 baris per halaman
+        $perPage = 10;
+        $total = $items->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, (int) $request->input('page', 1)), $lastPage);
+
+        return response()->json([
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'last_page' => $lastPage,
+            'items' => $items->forPage($page, $perPage)->values(),
+        ]);
+    }
+
+    /**
+     * Informasi pegawai berulang tahun (Catatan Masukan 21 Okt 2026):
+     * bulan ini / beberapa bulan ke depan, maks. 5 item per halaman +
+     * paginasi; tersedia mode daftar & grafik per bulan.
+     */
+    public function birthdays(Request $request)
+    {
+        $filters = $request->only(['es1', 'es2', 'balai', 'status_asn', 'rank', 'education', 'gender', 'search']);
+
+        $query = $this->service->applyFilters($this->service->baseQuery(), $filters);
+
+        return response()->json($this->service->getBirthdays(
+            $query,
+            (int) $request->input('months', 1),
+            5,
+            $request->input('month') !== null && $request->input('month') !== '' ? (int) $request->input('month') : null,
+            (int) $request->input('page', 1),
+        ));
+    }
 }

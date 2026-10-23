@@ -17,6 +17,7 @@ class LeaveRequest extends Model
     public const TYPE_SAKIT = 'sakit';
     public const TYPE_MELAHIRKAN = 'melahirkan';
     public const TYPE_ALASAN_PENTING = 'alasan_penting';
+    public const TYPE_BERSAMA = 'bersama'; // Cuti Bersama
     public const TYPE_CLTN = 'cltn'; // Cuti di Luar Tanggungan Negara
 
     /**
@@ -69,8 +70,39 @@ class LeaveRequest extends Model
             self::TYPE_SAKIT => 'Cuti Sakit',
             self::TYPE_MELAHIRKAN => 'Cuti Melahirkan',
             self::TYPE_ALASAN_PENTING => 'Cuti Karena Alasan Penting',
+            self::TYPE_BERSAMA => 'Cuti Bersama',
             self::TYPE_CLTN => 'Cuti di Luar Tanggungan Negara',
         ];
+    }
+
+    /**
+     * Jenis cuti yang tersedia sesuai status kepegawaian pegawai
+     * (Catatan Masukan 21 Okt 2026 — ketentuan PNS / PPPK / Non ASN):
+     *
+     * - PNS (termasuk CPNS): Cuti Tahunan, Besar, Sakit, Melahirkan,
+     *   Alasan Penting, Bersama, dan di Luar Tanggungan Negara;
+     * - PPPK: Cuti Tahunan, Sakit, Melahirkan, Bersama;
+     * - Non ASN: tidak dapat mengajukan cuti (daftar kosong).
+     */
+    public static function typeOptionsFor(?Employee $employee): array
+    {
+        if (! $employee) {
+            return [];
+        }
+
+        $all = self::typeOptions();
+
+        if ($employee->leave_scheme === 'PPPK') {
+            return collect($all)
+                ->only([self::TYPE_TAHUNAN, self::TYPE_SAKIT, self::TYPE_MELAHIRKAN, self::TYPE_BERSAMA])
+                ->all();
+        }
+
+        if ($employee->leave_scheme === 'NON_ASN') {
+            return [];
+        }
+
+        return $all;
     }
 
     public function getTypeLabelAttribute(): string

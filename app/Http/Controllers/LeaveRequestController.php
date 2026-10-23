@@ -6,13 +6,17 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Setting;
+use App\Models\Unit;
 use App\Services\Notifier;
+use App\Exports\GenericExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Pengajuan cuti pegawai.
@@ -44,6 +48,8 @@ class LeaveRequestController extends Controller implements HasMiddleware
     /**
      * Daftar pengajuan cuti - untuk pegawai: miliknya saja, untuk admin: semua.
      * Filter jenis & status mendukung pilihan lebih dari satu (checklist).
+     * Catatan Masukan 21 Okt 2026: tersedia filter rentang tanggal & unit
+     * kerja + ringkasan monitoring (jumlah cuti yang telah diambil).
      */
     public function index(Request $request)
     {
@@ -52,9 +58,22 @@ class LeaveRequestController extends Controller implements HasMiddleware
             ->paginate(12)
             ->withQueryString();
 
+        // ringkasan monitoring sesuai filter aktif
+        $statsQuery = clone $this->filteredQuery($request);
+
+        $stats = [
+            'total' => (clone $statsQuery)->count(),
+            'pending' => (clone $statsQuery)->where('status', LeaveRequest::STATUS_PENDING)->count(),
+            'approved' => (clone $statsQuery)->where('status', LeaveRequest::STATUS_APPROVED)->count(),
+            'rejected' => (clone $statsQuery)->where('status', LeaveRequest::STATUS_REJECTED)->count(),
+            'days_taken' => (int) (clone $statsQuery)->where('status', LeaveRequest::STATUS_APPROVED)->sum('total_days'),
+        ];
+
         return view('cuti.index', [
             'leaves' => $leaves,
-            'filters' => $request->only(['status', 'type', 'search']),
+            'stats' => $stats,
+            'filters' => $request->only(['status', 'type', 'search', 'date_from', 'date_to', 'unit']),
+            'unitOptions' => Unit::ordered()->get(),
         ]);
     }
 
@@ -68,9 +87,10 @@ class LeaveRequestController extends Controller implements HasMiddleware
 
         // data pegawai untuk autofill Bagian I (data pegawai) saat admin memilih pegawai
         // + posisi sisa cuti tahunan N-2 / N-1 / N tiap pegawai (Bagian V, otomatis sistem)
+        // + skema jenis cuti per status kepegawaian (PNS / PPPK / Non ASN — Catatan 21 Okt 2026)
         $employees = $user->isPrivileged()
             ? Employee::query()
-                ->with('unit')
+                ->with(['unit', 'employmentStatus'])
                 ->orderBy('name')
                 ->get()
                 ->map(fn (Employee $e) => [
@@ -80,6 +100,8 @@ class LeaveRequestController extends Controller implements HasMiddleware
                     'position_name' => $e->position_name,
                     'unit_name' => $e->unit?->name,
                     'masa_kerja' => $e->masa_kerja,
+                    'scheme' => $e->leave_scheme,
+                    'scheme_label' => $e->leave_scheme_label,
                     'balances' => LeaveRequest::annualBalances($e->id),
                 ])
             : collect();
@@ -87,11 +109,14 @@ class LeaveRequestController extends Controller implements HasMiddleware
         // pegawai yang sedang login: data Bagian I terisi otomatis dari profilnya;
         // admin/HRD tetap dapat mengganti pegawai melalui pencarian nama pada form
         $defaultEmployeeId = $user->employee_id;
+        $defaultEmployee = $defaultEmployeeId ? Employee::with('employmentStatus')->find($defaultEmployeeId) : null;
 
         return view('cuti.form', [
             'leave' => new LeaveRequest(['start_date' => now(), 'end_date' => now()]),
             'employees' => $employees,
             'defaultEmployeeId' => $defaultEmployeeId,
+            'defaultScheme' => $defaultEmployee?->leave_scheme ?? null,
+            'defaultSchemeLabel' => $defaultEmployee?->leave_scheme_label ?? null,
             'balances' => $defaultEmployeeId ? LeaveRequest::annualBalances($defaultEmployeeId) : null,
             'isPrivileged' => $user->isPrivileged(),
         ]);
@@ -128,6 +153,29 @@ class LeaveRequestController extends Controller implements HasMiddleware
             : $user->employee_id;
 
         abort_if(! $employeeId, 403, 'Akun Anda belum terhubung dengan data pegawai.');
+
+        $employee = Employee::with(['employmentStatus', 'unit'])->find($employeeId);
+
+        if (! $employee) {
+            return back()->with('error', 'Data pegawai tidak ditemukan.')->withInput();
+        }
+
+        /* ---------- Ketentuan jenis cuti per status (Catatan 21 Okt 2026) ----------
+         * PNS/CPNS : 7 jenis (Tahunan, Besar, Sakit, Melahirkan, Alasan Penting,
+         *             Bersama, di Luar Tanggungan Negara);
+         * PPPK     : Tahunan, Sakit, Melahirkan, Bersama;
+         * Non ASN  : tidak dapat mengajukan cuti. */
+        if ($employee->leave_scheme === 'NON_ASN') {
+            return back()->with('error', 'Pegawai Non ASN tidak dapat mengajukan cuti melalui aplikasi ini.')->withInput();
+        }
+
+        $allowedTypes = array_keys(LeaveRequest::typeOptionsFor($employee));
+
+        if (! in_array($validated['type'], $allowedTypes, true)) {
+            return back()
+                ->with('error', 'Jenis cuti "'.LeaveRequest::typeOptions()[$validated['type']].'" tidak tersedia untuk pegawai berstatus '.$employee->leave_scheme_label.'.')
+                ->withInput();
+        }
 
         /* ---------- Bagian V: catatan cuti (sisa N-2/N-1/N + keterangan) ----------
          * Pegawai: nominal dihitung OTOMATIS sistem (input readonly, abaikan kiriman).
@@ -201,8 +249,9 @@ class LeaveRequestController extends Controller implements HasMiddleware
     }
 
     /**
-     * Cetak / ekspor formulir permohonan cuti ke PDF
-     * (mengikuti tata letak formulir resmi Bagian I–VIII — siap print).
+     * Cetak / ekspor formulir permohonan cuti ke PDF — mengikuti tata letak
+     * formulir resmi baku BKN (FORM CUTI — PNS & PPPK) sesuai status
+     * kepegawaian pemohon (Catatan Masukan 21 Okt 2026).
      */
     public function print(LeaveRequest $leave)
     {
@@ -213,7 +262,9 @@ class LeaveRequestController extends Controller implements HasMiddleware
         AuditLog::record(AuditLog::EVENT_UPDATE, 'cuti',
             'Cetak formulir cuti: '.$leave->employee?->name.' ('.$leave->type_label.')');
 
-        return Pdf::loadView('cuti.pdf', ['leave' => $leave])
+        $scheme = $leave->employee?->leave_scheme ?? 'PNS';
+
+        return Pdf::loadView('cuti.pdf', ['leave' => $leave, 'scheme' => $scheme])
             ->setPaper('a4')
             ->stream(Str::slug('formulir-cuti-'.$leave->employee?->name).'.pdf');
     }
@@ -296,6 +347,158 @@ class LeaveRequestController extends Controller implements HasMiddleware
     /* ================= HELPERS ================= */
 
     /**
+     * Rekap & monitoring cuti per pegawai (Catatan Masukan 21 Okt 2026):
+     * jumlah cuti yang telah diambil (disetujui) per jenis + total hari,
+     * dengan filter rentang tanggal dan unit kerja.
+     * Akses: Admin Bagian, Biro SDM & Super Admin.
+     */
+    public function rekap(Request $request)
+    {
+        [$rows, $filters] = $this->rekapQuery($request);
+
+        $perPage = 15;
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $items = new LengthAwarePaginator(
+            $rows->slice(($page - 1) * $perPage, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+
+        return view('cuti.rekap', [
+            'items' => $items,
+            'grandTotal' => [
+                'employees' => $rows->count(),
+                'requests' => (int) $rows->sum('total_requests'),
+                'days' => (int) $rows->sum('total_days'),
+            ],
+            'filters' => $filters,
+            'unitOptions' => Unit::ordered()->get(),
+        ]);
+    }
+
+    /**
+     * Export rekap cuti per pegawai ke Excel (mengikuti filter aktif).
+     */
+    public function rekapExport(Request $request)
+    {
+        [$rows] = $this->rekapQuery($request);
+
+        if ($rows->isEmpty()) {
+            return back()->with('error', 'Tidak ada data rekap cuti untuk diekspor.');
+        }
+
+        $headings = ['No', 'Nama Pegawai', 'NIP', 'Unit Kerja', 'Status',
+            'Tahunan (hari)', 'Besar (hari)', 'Sakit (hari)', 'Melahirkan (hari)',
+            'Alasan Penting (hari)', 'Bersama (hari)', 'CLTN (hari)',
+            'Total Hari Cuti', 'Jumlah Pengajuan'];
+
+        $export = $rows->values()->map(fn (array $r, int $i) => [
+            $i + 1, $r['name'], $r['nip'], $r['unit'], $r['status'],
+            $r['days'][LeaveRequest::TYPE_TAHUNAN] ?? 0,
+            $r['days'][LeaveRequest::TYPE_BESAR] ?? 0,
+            $r['days'][LeaveRequest::TYPE_SAKIT] ?? 0,
+            $r['days'][LeaveRequest::TYPE_MELAHIRKAN] ?? 0,
+            $r['days'][LeaveRequest::TYPE_ALASAN_PENTING] ?? 0,
+            $r['days'][LeaveRequest::TYPE_BERSAMA] ?? 0,
+            $r['days'][LeaveRequest::TYPE_CLTN] ?? 0,
+            $r['total_days'], $r['total_requests'],
+        ]);
+
+        AuditLog::record(AuditLog::EVENT_UPDATE, 'cuti', 'Ekspor rekap cuti ('.$export->count().' pegawai)');
+
+        return Excel::download(
+            new GenericExport($export, $headings, 'Rekap Cuti'),
+            'rekap-cuti-'.now()->format('Ymd-His').'.xlsx',
+        );
+    }
+
+    /**
+     * Query rekap cuti ter-agregasi per pegawai (hanya status DISSETUJUI —
+     * cuti yang benar-benar telah diambil) + filter tanggal & unit kerja.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array}
+     */
+    private function rekapQuery(Request $request): array
+    {
+        $filters = $request->only(['date_from', 'date_to', 'unit', 'search']);
+
+        $query = LeaveRequest::query()
+            ->where('leave_requests.status', LeaveRequest::STATUS_APPROVED)
+            ->join('employees', 'employees.id', '=', 'leave_requests.employee_id')
+            ->join('units', 'units.id', '=', 'employees.unit_id')
+            ->selectRaw('leave_requests.employee_id, leave_requests.type,
+                COUNT(*) as jumlah, SUM(leave_requests.total_days) as hari')
+            ->groupBy('leave_requests.employee_id', 'leave_requests.type');
+
+        // rentang tanggal: cuti yang BERIRINGAN (overlap) dengan periode terpilih
+        if (! empty($filters['date_from'])) {
+            $query->whereDate('leave_requests.end_date', '>=', $filters['date_from']);
+        }
+
+        if (! empty($filters['date_to'])) {
+            $query->whereDate('leave_requests.start_date', '<=', $filters['date_to']);
+        }
+
+        // unit kerja terpilih beserta seluruh turunannya
+        $unitIds = collect($filters['unit'] ?? [])->filter()->values();
+
+        if ($unitIds->isNotEmpty()) {
+            $all = $unitIds->map(fn ($v) => (int) $v)->unique()->values();
+            $parents = $all->values();
+
+            while ($parents->isNotEmpty()) {
+                $parents = Unit::whereIn('parent_id', $parents)->pluck('id');
+                $all = $all->merge($parents)->unique()->values();
+            }
+
+            $query->whereIn('employees.unit_id', $all->all());
+        }
+
+        if (! empty($filters['search'])) {
+            $query->where(fn ($q) => $q->where('employees.name', 'like', '%'.$filters['search'].'%')
+                ->orWhere('employees.nip', 'like', '%'.$filters['search'].'%'));
+        }
+
+        $employees = Employee::query()->with(['unit', 'employmentStatus'])
+            ->whereIn('id', (clone $query)->pluck('leave_requests.employee_id')->unique())
+            ->get()
+            ->keyBy('id');
+
+        $rows = collect();
+
+        foreach ($query->get() as $row) {
+            $employee = $employees->get($row->employee_id);
+
+            if (! $employee) {
+                continue;
+            }
+
+            $item = $rows->get($row->employee_id, [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'nip' => $employee->nip,
+                'unit' => $employee->unit?->name ?? '-',
+                'status' => $employee->display_status,
+                'days' => [],
+                'counts' => [],
+                'total_days' => 0,
+                'total_requests' => 0,
+            ]);
+
+            $item['days'][$row->type] = (int) $row->hari;
+            $item['counts'][$row->type] = (int) $row->jumlah;
+            $item['total_days'] += (int) $row->hari;
+            $item['total_requests'] += (int) $row->jumlah;
+
+            $rows->put($row->employee_id, $item);
+        }
+
+        return [$rows->sortBy(fn ($r) => mb_strtolower($r['name']))->values(), $filters];
+    }
+
+    /**
      * Query pengajuan cuti dengan filter (dipakai index).
      * Jenis cuti & status mendukung pilihan LEBIH DARI SATU (checklist)
      * serta tautan lama satu nilai (?status=PENDING).
@@ -310,10 +513,26 @@ class LeaveRequestController extends Controller implements HasMiddleware
         $canSearch = $user->isAdmin() || $user->isSuperAdmin();
 
         return LeaveRequest::query()
-            ->with(['employee.employmentStatus', 'verifier', 'approver'])
+            ->with(['employee.employmentStatus', 'employee.unit', 'verifier', 'approver'])
             ->when(! $user->isPrivileged(), fn ($q) => $q->where('employee_id', $user->employee_id))
             ->when($asArray($request->status)->isNotEmpty(), fn ($q) => $q->whereIn('status', $asArray($request->status)))
             ->when($asArray($request->type)->isNotEmpty(), fn ($q) => $q->whereIn('type', $asArray($request->type)))
+            /* filter rentang tanggal — pengajuan yang beririsan (overlap)
+               dengan periode terpilih (Catatan 21 Okt 2026) */
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('end_date', '>=', $v))
+            ->when($request->date_to, fn ($q, $v) => $q->whereDate('start_date', '<=', $v))
+            /* filter unit kerja terpilih + seluruh turunannya */
+            ->when($asArray($request->unit)->isNotEmpty(), function ($q) use ($asArray, $request) {
+                $all = $asArray($request->unit)->map(fn ($v) => (int) $v)->unique()->values();
+                $parents = $all->values();
+
+                while ($parents->isNotEmpty()) {
+                    $parents = Unit::whereIn('parent_id', $parents)->pluck('id');
+                    $all = $all->merge($parents)->unique()->values();
+                }
+
+                $q->whereHas('employee', fn ($e) => $e->whereIn('unit_id', $all->all()));
+            })
             ->when($canSearch && $request->search, fn ($q, $v) => $q->where(fn ($w) => $w
                 ->where('reason', 'like', "%{$v}%")
                 ->orWhereHas('employee', fn ($e) => $e->where('name', 'like', "%{$v}%"))));

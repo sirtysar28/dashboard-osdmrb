@@ -284,7 +284,11 @@
                     <div class="unit-item">
                         <div class="unit-item-head">
                             <span class="unit-item-name" title="{{ $unit['label'] }}">{{ $unit['label'] }}</span>
-                            <span class="unit-item-count">{{ number_format($unit['total']) }}</span>
+                            {{-- Catatan 21 Okt 2026: angka bisa diklik -> daftar pegawai unit --}}
+                            <button type="button" class="btn btn-sm unit-drill-btn" data-unit="{{ $unit['label'] }}"
+                                    title="Lihat daftar pegawai unit ini">
+                                <i class="bi bi-people-fill me-1"></i>{{ number_format($unit['total']) }}
+                            </button>
                         </div>
                         <div class="unit-item-bar">
                             <div class="unit-item-fill" style="width: {{ max(round($unit['total'] / $unitMax * 100), 2) }}%"></div>
@@ -391,6 +395,59 @@
                         <i class="bi {{ $i <= round($surveyStats['average']) ? 'bi-star-fill text-warning' : 'bi-star text-muted' }}"></i>
                     @endfor
                 </div>
+            </div>
+        </div>
+
+        {{-- ================= ULANG TAHUN PEGAWAI (Catatan 21 Okt 2026) =================
+             Menampilkan pegawai berulang tahun bulan ini / beberapa bulan ke depan.
+             Maks. 5 item per halaman + paginasi; mode tampilan daftar / grafik. --}}
+        <div class="chart-card mt-3" id="birthdayCard">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+                <h5 class="mb-0"><i class="bi bi-cake2 me-2"></i>Ulang Tahun Pegawai</h5>
+                <div class="d-flex gap-1">
+                    <select id="birthdayPeriod" class="form-select form-select-sm" style="width:auto"
+                            title="Periode ulang tahun">
+                        <option value="1">Bulan ini</option>
+                        <option value="3">3 bulan ke depan</option>
+                        <option value="6">6 bulan ke depan</option>
+                        <option value="12">12 bulan ke depan</option>
+                    </select>
+                    <select id="birthdayMode" class="form-select form-select-sm" style="width:auto"
+                            title="Bentuk tampilan informasi">
+                        <option value="list">Daftar</option>
+                        <option value="chart">Grafik</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="birthdayMonthChip" class="mb-2" style="display:none">
+                <span class="badge bg-primary-subtle text-primary">
+                    <i class="bi bi-calendar-event me-1"></i><span id="birthdayMonthLabel"></span>
+                    <button type="button" id="birthdayMonthReset" class="btn btn-sm p-0 text-primary"
+                            title="Hapus filter bulan" style="line-height:1">&times;</button>
+                </span>
+            </div>
+
+            {{-- mode daftar (maks 5 item + paginasi) --}}
+            <div id="birthdayListWrap">
+                <ul class="list-group list-group-flush" id="birthdayList"></ul>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted" id="birthdayMeta">&nbsp;</small>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" id="birthdayPrev" title="Halaman sebelumnya">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="birthdayNext" title="Halaman berikutnya">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- mode grafik per bulan --}}
+            <div id="birthdayChartWrap" style="display:none">
+                <div class="chart-wrap"><canvas id="birthdayChart"></canvas></div>
+                <small class="text-muted d-block mt-2">Klik batang bulan untuk melihat daftar pegawainya.</small>
             </div>
         </div>
     </div>
@@ -525,13 +582,297 @@
     </div>
 </div>
 
+<div class="modal fade" id="drilldownModal" tabindex="-1" aria-hidden="true" aria-labelledby="drilldownModalTitle">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="drilldownModalTitle">Daftar Pegawai</h5>
+                <span class="badge bg-primary-subtle text-primary ms-2" id="drilldownTotal">0 pegawai</span>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body p-0">
+                {{-- Filter pencarian popup — hanya nama / NIP / jabatan
+                     (Catatan Masukan 23 Okt 2026) --}}
+                <div class="px-3 py-2 border-bottom">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="drilldownSearch"
+                               placeholder="Cari nama / NIP / jabatan..." autocomplete="off">
+                        <button class="btn btn-outline-secondary" type="button" id="drilldownSearchClear"
+                                title="Hapus pencarian"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Nama</th>
+                                <th>NIP</th>
+                                <th>Jabatan</th>
+                                <th>Unit Kerja</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drilldownBody"></tbody>
+                    </table>
+                </div>
+                <div class="text-center text-muted small py-3" id="drilldownEmpty" style="display:none">
+                    Tidak ada pegawai pada kategori ini.
+                </div>
+                {{-- Paginasi: maks. 10 baris per halaman --}}
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top"
+                     id="drilldownFooter" style="display:none">
+                    <span class="text-muted small" id="drilldownInfo"></span>
+                    <nav aria-label="Navigasi halaman daftar pegawai">
+                        <ul class="pagination pagination-sm mb-0" id="drilldownPagination"></ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
+{{-- ================= POPUP DAFTAR PEGAWAI (DRILL-DOWN INFOGRAFIS) =================
+     Catatan Masukan 21 Okt 2026: klik angka/segmen grafik dashboard untuk
+     menampilkan daftar pegawai penyusun angka tersebut. --}}
+
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{{-- Chart.js lokal: bebas dari blokir/ gangguan CDN — penyebab grafik
+   dashboard tidak muncul di sebagian jaringan kementerian. --}}
+<script src="{{ asset('vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
+    /* pengaman: bila Chart/ bootstrap gagal dimuat, tampilkan pesan —
+       bukan mati senyap. (bootstrap penting karena popup drill-down
+       memakai bootstrap.Modal; tanpa pengaman, satu kegagalan pustaka
+       mematikan SEMUA grafik dashboard.) */
+    if (typeof Chart === 'undefined') {
+        document.querySelectorAll('.chart-wrap').forEach(function (w) {
+            w.innerHTML = '<div class="text-muted small text-center py-5">Pustaka grafik (Chart.js) gagal dimuat. Muat ulang halaman.</div>';
+        });
+    } else if (typeof bootstrap === 'undefined') {
+        document.querySelectorAll('.chart-wrap').forEach(function (w) {
+            w.innerHTML = '<div class="text-muted small text-center py-5">Pustaka antarmuka (Bootstrap JS) gagal dimuat. Muat ulang halaman.</div>';
+        });
+    }
+</script>
+<script>
+    if (typeof Chart !== 'undefined' && typeof bootstrap !== 'undefined') {
     const chartFont = { family: "'Segoe UI', sans-serif", size: 11 };
     Chart.defaults.font = chartFont;
+
+    /* ================== DRILL-DOWN INFOGRAFIS (21 Okt 2026) ==================
+       Klik angka/segmen grafik -> popup daftar pegawai penyusun angka. */
+    const drilldownUrl = @js(route('dashboard.drilldown'));
+    const drilldownModalEl = document.getElementById('drilldownModal');
+
+    /* bcache: popup drill-down adalah fitur pelengkap — kegagalannya
+       TIDAK BOLEH mematikan render grafik (try/catch pengaman). */
+    let drilldownModal = null;
+    try {
+        drilldownModal = drilldownModalEl ? new bootstrap.Modal(drilldownModalEl) : null;
+    } catch (e) {
+        console.warn('Drill-down popup tidak tersedia:', e);
+    }
+    const drilldownTitleMap = {
+        education: 'Tingkat Pendidikan',
+        age: 'Kelompok Usia',
+        gender: 'Komposisi Gender',
+        swimming: 'Kemampuan Renang',
+        retirement: 'Proyeksi Pensiun',
+        status: 'Status Kepegawaian',
+        promotion: 'Proyeksi Kenaikan Pangkat',
+        salary_raise: 'Proyeksi Kenaikan Gaji Berkala (KGB)',
+        unit: 'Distribusi Unit Kerja',
+    };
+
+    /* keamanan isi tabel: data pegawai di-escape sebelum masuk template */
+    function drilldownEsc(v) {
+        return String(v ?? '')
+            .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+    }
+
+    /* state popup: kategori, nilai, pencarian & halaman aktif
+       (paginasi + pencarian nama/NIP/jabatan — Catatan Masukan 23 Okt 2026) */
+    const drilldownState = { category: '', value: '', search: '', page: 1, lastPage: 1 };
+    let drilldownRequest = 0; /* respons fetch lama diabaikan (race condition) */
+
+    /* tombol halaman ringkas: 1 … (p-1) p (p+1) … terakhir */
+    function drilldownPaginationLinks(page, lastPage) {
+        const pages = [];
+        const add = (p) => { if (p >= 1 && p <= lastPage && !pages.includes(p)) pages.push(p); };
+        add(1); add(page - 1); add(page); add(page + 1); add(lastPage);
+        pages.sort((a, b) => a - b);
+
+        let html = '<li class="page-item ' + (page <= 1 ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (page - 1) + '" aria-label="Halaman sebelumnya">&laquo;</a></li>';
+
+        let prev = 0;
+        pages.forEach((p) => {
+            if (p - prev > 1) html += '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>';
+            html += '<li class="page-item ' + (p === page ? 'active' : '') + '">' +
+                '<a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+            prev = p;
+        });
+
+        html += '<li class="page-item ' + (page >= lastPage ? 'disabled' : '') + '">' +
+            '<a class="page-link" href="#" data-page="' + (page + 1) + '" aria-label="Halaman berikutnya">&raquo;</a></li>';
+        return html;
+    }
+
+    function loadDrilldown() {
+        if (!drilldownModal) return;
+
+        const body = document.getElementById('drilldownBody');
+        const empty = document.getElementById('drilldownEmpty');
+        const footer = document.getElementById('drilldownFooter');
+        const total = document.getElementById('drilldownTotal');
+
+        body.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Memuat...</td></tr>';
+        empty.style.display = 'none';
+        footer.style.display = 'none';
+        total.textContent = '...';
+
+        // filter dashboard aktif ikut dikirim supaya daftar sesuai grafik;
+        // `q` = pencarian popup (nama/NIP/jabatan), `page` = halaman aktif
+        const params = new URLSearchParams(window.location.search);
+        params.set('category', drilldownState.category);
+        params.set('value', drilldownState.value);
+        params.set('q', drilldownState.search);
+        params.set('page', drilldownState.page);
+
+        const reqId = ++drilldownRequest;
+
+        fetch(drilldownUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+            .then((res) => res.json())
+            .then((data) => {
+                if (reqId !== drilldownRequest) return; /* sudah ada request baru */
+
+                total.textContent = data.total + ' pegawai';
+                const offset = (data.page - 1) * data.per_page;
+
+                if (!data.items.length) {
+                    body.innerHTML = '';
+                    empty.textContent = drilldownState.search
+                        ? 'Tidak ada pegawai yang cocok dengan pencarian "' + drilldownState.search + '".'
+                        : 'Tidak ada pegawai pada kategori ini.';
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                body.innerHTML = data.items.map((p, i) => `
+                    <tr>
+                        <td class="text-muted">${offset + i + 1}</td>
+                        <td><a href="{{ url('/employees') }}/${p.id}" class="fw-semibold text-decoration-none">${drilldownEsc(p.name)}</a></td>
+                        <td class="text-nowrap">${drilldownEsc(p.nip || '-')}</td>
+                        <td>${drilldownEsc(p.position || '-')}</td>
+                        <td>${drilldownEsc(p.unit || '-')}</td>
+                        <td>${drilldownEsc(p.status || '-')}</td>
+                    </tr>`).join('');
+
+                /* info + tombol paginasi (maks. 10 baris per halaman) */
+                document.getElementById('drilldownInfo').textContent =
+                    'Menampilkan ' + (offset + 1) + '\u2013' + (offset + data.items.length) +
+                    ' dari ' + data.total + ' pegawai';
+                document.getElementById('drilldownPagination').innerHTML =
+                    drilldownPaginationLinks(data.page, data.last_page);
+                drilldownState.lastPage = data.last_page;
+                footer.style.display = 'flex';
+            })
+            .catch(() => {
+                if (reqId !== drilldownRequest) return;
+                body.innerHTML = '';
+                empty.textContent = 'Gagal memuat data pegawai.';
+                empty.style.display = 'block';
+            });
+    }
+
+    function openDrilldown(category, value) {
+        if (!drilldownModal || value === null || value === undefined || value === '') return;
+
+        document.getElementById('drilldownModalTitle').textContent =
+            (drilldownTitleMap[category] || 'Daftar Pegawai') + ' — ' + value;
+
+        /* tiap popup dibuka: pencarian & halaman dikembalikan ke awal */
+        drilldownState.category = category;
+        drilldownState.value = value;
+        drilldownState.search = '';
+        drilldownState.page = 1;
+        const searchInput = document.getElementById('drilldownSearch');
+        if (searchInput) searchInput.value = '';
+
+        drilldownModal.show();
+        loadDrilldown();
+    }
+
+    /* pencarian popup — debounce 300ms; Enter langsung; kembali ke hal. 1 */
+    const drilldownSearchInput = document.getElementById('drilldownSearch');
+    let drilldownSearchTimer = null;
+    if (drilldownSearchInput) {
+        drilldownSearchInput.addEventListener('input', function () {
+            clearTimeout(drilldownSearchTimer);
+            drilldownSearchTimer = setTimeout(() => {
+                drilldownState.search = this.value.trim();
+                drilldownState.page = 1;
+                loadDrilldown();
+            }, 300);
+        });
+        drilldownSearchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(drilldownSearchTimer);
+                drilldownState.search = this.value.trim();
+                drilldownState.page = 1;
+                loadDrilldown();
+            }
+        });
+    }
+    const drilldownSearchClear = document.getElementById('drilldownSearchClear');
+    if (drilldownSearchClear) {
+        drilldownSearchClear.addEventListener('click', function () {
+            if (drilldownSearchInput) drilldownSearchInput.value = '';
+            drilldownState.search = '';
+            drilldownState.page = 1;
+            loadDrilldown();
+        });
+    }
+
+    /* klik nomor halaman / panah paginasi popup */
+    const drilldownPaginationEl = document.getElementById('drilldownPagination');
+    if (drilldownPaginationEl) {
+        drilldownPaginationEl.addEventListener('click', function (e) {
+            const link = e.target.closest('a.page-link');
+            if (!link) return;
+            e.preventDefault();
+
+            const target = parseInt(link.dataset.page, 10);
+            if (!target || target < 1 || target > drilldownState.lastPage || target === drilldownState.page) return;
+
+            drilldownState.page = target;
+            loadDrilldown();
+
+            /* ikut geser tabel popup kembali ke atas */
+            const scrollEl = drilldownModalEl ? drilldownModalEl.querySelector('.table-responsive') : null;
+            if (scrollEl) scrollEl.scrollTop = 0;
+        });
+    }
+
+    /* handler klik seragam untuk semua chart dashboard */
+    const drilldownClick = (category) => function (event, elements, chart) {
+        if (!elements.length) return;
+
+        const index = elements[0].index;
+        const value = chart.data.labels[index];
+        openDrilldown(category, value);
+    };
+
+    /* klik angka distribusi unit kerja (list) */
+    document.addEventListener('click', function (event) {
+        const btn = event.target.closest('.unit-drill-btn');
+        if (btn) openDrilldown('unit', btn.dataset.unit);
+    });
 
     /* warna tema dari Pengaturan (mengikuti tema aplikasi) */
     const themePrimary = @js(\App\Models\Setting::get('theme_primary', '#163d4f'));
@@ -548,8 +889,19 @@
         plugins: { legend: { display: false } }
     };
 
+    /* ================== HELPER ANTI-GAGAL ==================
+       Satu chart yang error tidak boleh mematikan chart lain —
+       tiap pembuatan chart dibungkus try/catch. */
+    function safeChart(id, config) {
+        try {
+            new Chart(document.getElementById(id), config);
+        } catch (e) {
+            console.warn('Chart "' + id + '" gagal dirender:', e);
+        }
+    }
+
     /* Chart Tingkat Pendidikan (bar horizontal) */
-    new Chart(document.getElementById('educationChart'), {
+    safeChart('educationChart', {
         type: 'bar',
         data: {
             labels: @js(collect($educationChart)->pluck('label')),
@@ -563,12 +915,13 @@
         options: {
             ...baseOptions,
             indexAxis: 'y',
+            onClick: drilldownClick('education'),
             scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 
     /* Chart Distribusi Usia (bar horizontal) */
-    new Chart(document.getElementById('ageChart'), {
+    safeChart('ageChart', {
         type: 'bar',
         data: {
             labels: @js(collect($ageDistribution)->pluck('label')),
@@ -582,12 +935,13 @@
         options: {
             ...baseOptions,
             indexAxis: 'y',
+            onClick: drilldownClick('age'),
             scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 
     /* Chart Proyeksi Pensiun (DIAGRAM GARIS / LINE) */
-    new Chart(document.getElementById('retirementChart'), {
+    safeChart('retirementChart', {
         type: 'line',
         data: {
             labels: @js(collect($retirementProjection)->pluck('label')),
@@ -606,12 +960,13 @@
         },
         options: {
             ...baseOptions,
+            onClick: drilldownClick('retirement'),
             scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 
     /* Chart Proyeksi Kenaikan Pangkat (DIAGRAM GARIS / LINE) */
-    new Chart(document.getElementById('promotionChart'), {
+    safeChart('promotionChart', {
         type: 'line',
         data: {
             labels: @js(collect($promotionStats['projection'])->pluck('label')),
@@ -633,12 +988,13 @@
         },
         options: {
             ...baseOptions,
+            onClick: drilldownClick('promotion'),
             scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 
     /* Chart Gender (DONUT) */
-    new Chart(document.getElementById('genderChart'), {
+    safeChart('genderChart', {
         type: 'doughnut',
         data: {
             labels: @js(collect($genderComposition)->pluck('label')),
@@ -652,6 +1008,7 @@
         options: {
             ...baseOptions,
             cutout: '60%',
+            onClick: drilldownClick('gender'),
             plugins: {
                 legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }
             }
@@ -659,7 +1016,7 @@
     });
 
     /* Chart Kemampuan Berenang (DONUT) */
-    new Chart(document.getElementById('swimmingChart'), {
+    safeChart('swimmingChart', {
         type: 'doughnut',
         data: {
             labels: @js(collect($swimmingComposition)->pluck('label')),
@@ -673,6 +1030,7 @@
         options: {
             ...baseOptions,
             cutout: '60%',
+            onClick: drilldownClick('swimming'),
             plugins: {
                 legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } }
             }
@@ -680,7 +1038,7 @@
     });
 
     /* Chart Proyeksi Kenaikan Gaji Berkala / KGB (DIAGRAM GARIS / LINE) */
-    new Chart(document.getElementById('salaryRaiseChart'), {
+    safeChart('salaryRaiseChart', {
         type: 'line',
         data: {
             labels: @js(collect($salaryRaiseStats['projection'])->pluck('label')),
@@ -699,12 +1057,13 @@
         },
         options: {
             ...baseOptions,
+            onClick: drilldownClick('salary_raise'),
             scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
         }
     });
 
     /* Chart Status Kepegawaian (DONUT) */
-    new Chart(document.getElementById('statusChart'), {
+    safeChart('statusChart', {
         type: 'doughnut',
         data: {
             labels: @js(collect($statusComposition)->pluck('label')),
@@ -718,10 +1077,159 @@
         options: {
             ...baseOptions,
             cutout: '55%',
+            onClick: drilldownClick('status'),
             plugins: {
                 legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 10 } }
             }
         }
     });
+
+    /* ================== ULANG TAHUN PEGAWAI (21 Okt 2026) ==================
+       Daftar (maks 5 item + paginasi) / grafik per bulan — AJAX agar tetap
+       mengikuti filter dashboard yang sedang aktif. */
+    (function () {
+        const card = document.getElementById('birthdayCard');
+        if (!card) return;
+
+        const birthdaysUrl = @js(route('dashboard.birthdays'));
+        const listEl = document.getElementById('birthdayList');
+        const metaEl = document.getElementById('birthdayMeta');
+        const prevBtn = document.getElementById('birthdayPrev');
+        const nextBtn = document.getElementById('birthdayNext');
+        const periodEl = document.getElementById('birthdayPeriod');
+        const modeEl = document.getElementById('birthdayMode');
+        const listWrap = document.getElementById('birthdayListWrap');
+        const chartWrap = document.getElementById('birthdayChartWrap');
+        const chipEl = document.getElementById('birthdayMonthChip');
+        const chipLabel = document.getElementById('birthdayMonthLabel');
+
+        let page = 1;
+        let month = null;
+        let lastData = { total: 0, page: 1, last_page: 1, items: [], monthly: [] };
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function badge(p) {
+            if (p.days_left === 0) return '<span class="badge bg-danger-subtle text-danger">Hari ini</span>';
+            if (p.days_left <= 7) return '<span class="badge bg-warning-subtle text-warning-emphasis">' + p.days_left + ' hari lagi</span>';
+            return '<span class="badge bg-light text-dark border">' + p.days_left + ' hari lagi</span>';
+        }
+
+        function renderList(data) {
+            lastData = data;
+
+            listEl.innerHTML = data.items.length
+                ? data.items.map((p) => `
+                    <li class="list-group-item px-0 d-flex align-items-center gap-2">
+                        <span class="holder-avatar flex-shrink-0">${escapeHtml((p.name || '?').split(' ').map((w) => w.charAt(0)).slice(0, 2).join('').toUpperCase())}</span>
+                        <div class="min-width-0 flex-grow-1">
+                            <a href="{{ url('/employees') }}/${p.id}" class="fw-semibold text-decoration-none d-block text-truncate">${escapeHtml(p.name)}</a>
+                            <small class="text-muted d-block text-truncate">${escapeHtml(p.unit)}</small>
+                        </div>
+                        <div class="text-end flex-shrink-0">
+                            <span class="d-block small fw-semibold">${escapeHtml(p.date)}</span>
+                            <small class="text-muted">-${p.turning_age} th &middot; ${badge(p)}</small>
+                        </div>
+                    </li>`).join('')
+                : '<li class="list-group-item text-center text-muted py-4">Tidak ada pegawai berulang tahun pada periode ini.</li>';
+
+            const from = data.total ? (data.page - 1) * data.per_page + 1 : 0;
+            const to = Math.min(data.page * data.per_page, data.total);
+            metaEl.textContent = data.total ? 'Menampilkan ' + from + '\u2013' + to + ' dari ' + data.total : ' ';
+
+            prevBtn.disabled = data.page <= 1;
+            nextBtn.disabled = data.page >= data.last_page;
+            prevBtn.classList.toggle('disabled', data.page <= 1);
+            nextBtn.classList.toggle('disabled', data.page >= data.last_page);
+        }
+
+        let bchart = null;
+
+        function renderChart(monthly) {
+            const ctx = document.getElementById('birthdayChart');
+
+            if (bchart) bchart.destroy();
+
+            try {
+                bchart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthly.map((m) => m.short),
+                    datasets: [{
+                        label: 'Pegawai berulang tahun',
+                        data: monthly.map((m) => m.total),
+                        backgroundColor: themeAccent,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    ...baseOptions,
+                    onClick: (event, elements) => {
+                        if (!elements.length) return;
+
+                        // klik batang bulan -> tampilkan daftar pegawai bulan tsb.
+                        month = monthly[elements[0].index].month;
+                        chipLabel.textContent = 'Bulan: ' + monthly[elements[0].index].label;
+                        chipEl.style.display = 'block';
+                        modeEl.value = 'list';
+                        syncMode();
+                        load(1);
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+                });
+            } catch (e) {
+                console.warn('Chart "birthdayChart" gagal dirender:', e);
+            }
+        }
+
+        function syncMode() {
+            const chart = modeEl.value === 'chart';
+            listWrap.style.display = chart ? 'none' : 'block';
+            chartWrap.style.display = chart ? 'block' : 'none';
+            if (chart) renderChart(lastData.monthly || []);
+        }
+
+        function load(targetPage) {
+            page = targetPage || 1;
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('months', periodEl.value);
+            params.set('page', page);
+            if (month !== null) params.set('month', month);
+            else params.delete('month');
+            params.delete('category');
+            params.delete('value');
+
+            metaEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            fetch(birthdaysUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then((res) => res.json())
+                .then((data) => {
+                    renderList(data);
+                    if (modeEl.value === 'chart') renderChart(data.monthly || []);
+                })
+                .catch(() => {
+                    metaEl.textContent = 'Gagal memuat data.';
+                });
+        }
+
+        prevBtn.addEventListener('click', () => { if (page > 1) load(page - 1); });
+        nextBtn.addEventListener('click', () => { if (page < lastData.last_page) load(page + 1); });
+        periodEl.addEventListener('change', () => { month = null; chipEl.style.display = 'none'; load(1); });
+        modeEl.addEventListener('change', syncMode);
+        document.getElementById('birthdayMonthReset').addEventListener('click', () => {
+            month = null;
+            chipEl.style.display = 'none';
+            load(1);
+        });
+
+        load(1);
+    })();
+    } /* end if typeof Chart !== 'undefined' */
 </script>
 @endpush

@@ -160,6 +160,41 @@ class Employee extends Model
      * CPNS (status efektif) — catatan rapat 25 Sept 2026: ketika difilter
      * CPNS, data pegawai tersebut harus tampil.
      */
+    /* ================= KELOMPOK LAYANAN CUTI (21 Okt 2026) ================= */
+
+    /** Pegawai PPPK (Pegawai Pemerintah dengan Perjanjian Kerja). */
+    public function getIsPppkAttribute(): bool
+    {
+        $status = $this->employmentStatus;
+
+        return $status && str_starts_with(mb_strtolower(trim($status->name)), 'pppk');
+    }
+
+    /**
+     * Skema layanan cuti pegawai sesuai ketentuan per status kepegawaian
+     * (Catatan Masukan 21 Okt 2026):
+     * - PNS (termasuk CPNS) : 7 jenis cuti;
+     * - PPPK                : Cuti Tahunan, Sakit, Melahirkan, Bersama;
+     * - Non ASN             : tidak dapat mengajukan cuti.
+     */
+    public function getLeaveSchemeAttribute(): string
+    {
+        if (! $this->is_asn) {
+            return 'NON_ASN';
+        }
+
+        return $this->is_pppk ? 'PPPK' : 'PNS';
+    }
+
+    public function getLeaveSchemeLabelAttribute(): string
+    {
+        return [
+            'PNS' => 'PNS/CPNS',
+            'PPPK' => 'PPPK',
+            'NON_ASN' => 'Non ASN',
+        ][$this->leave_scheme] ?? '-';
+    }
+
     public function getIsEffectiveCpnsAttribute(): bool
     {
         if ($this->tmt_pns !== null) {
