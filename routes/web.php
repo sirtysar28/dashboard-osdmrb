@@ -66,6 +66,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/pegawai/profil', [EmployeeController::class, 'myProfile'])->name('pegawai.profile');
     });
 
+    /* ================= NOTIFIKASI ULANG TAHUN (semua role — ikon lonceng header) =================
+       Popup maks. 5 pegawai berulang tahun: bulan ini, bulan depan, 3 bulan lagi, dst. */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::get('/api/dashboard/birthdays', [DashboardController::class, 'birthdays'])->name('dashboard.birthdays');
+    });
+
     /* ================= MODUL BIRO OSDMRB ================= */
     Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
         Route::get('/modul/analisis-jabatan-fungsional', [ModuleController::class, 'analisisJabatan'])->name('modules.analisis-jabatan');
@@ -175,9 +181,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/api/dashboard/statistics', [DashboardController::class, 'statistics'])->name('dashboard.statistics');
 
-        // Popup daftar pegawai & informasi ulang tahun (Catatan 21 Okt 2026)
+        // Popup daftar pegawai (drilldown statistik dashboard)
         Route::get('/api/dashboard/drilldown', [DashboardController::class, 'drilldown'])->name('dashboard.drilldown');
-        Route::get('/api/dashboard/birthdays', [DashboardController::class, 'birthdays'])->name('dashboard.birthdays');
 
         // Manajemen pegawai (ASN)
         Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');

@@ -289,6 +289,54 @@
 
             <div class="d-flex align-items-center gap-3">
 
+                {{-- ===== NOTIFIKASI ULANG TAHUN PEGAWAI (popup maks. 5 item) =====
+                     Klik ikon lonceng -> daftar pegawai berulang tahun bulan ini,
+                     bulan depan, 3 bulan lagi, dst. Badge merah = jumlah UY bulan ini. --}}
+                <div class="dropdown birthday-notify" id="birthdayNotify">
+                    <button class="notify-bell" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                            aria-expanded="false" title="Notifikasi ulang tahun pegawai">
+                        <i class="bi bi-bell-fill" id="birthdayBellIcon"></i>
+                        <span class="notify-badge d-none" id="birthdayBadge">0</span>
+                    </button>
+
+                    <div class="dropdown-menu dropdown-menu-end shadow birthday-notify-menu">
+                        <div class="birthday-notify-header">
+                            <div>
+                                <h6><i class="bi bi-cake2-fill me-1"></i>Ulang Tahun Pegawai</h6>
+                                <small id="birthdayNotifySubtitle">Memuat data...</small>
+                            </div>
+                        </div>
+
+                        {{-- Pilihan periode: bulan ini, bulan depan, 3 bulan, dst. --}}
+                        <div class="birthday-notify-period">
+                            <div class="btn-group btn-group-sm w-100" role="group" aria-label="Periode ulang tahun">
+                                <button type="button" class="btn btn-period active" data-months="1">Bulan ini</button>
+                                <button type="button" class="btn btn-period" data-months="2">2 Bulan</button>
+                                <button type="button" class="btn btn-period" data-months="3">3 Bulan</button>
+                                <button type="button" class="btn btn-period" data-months="6">6 Bulan</button>
+                                <button type="button" class="btn btn-period" data-months="12">1 Tahun</button>
+                            </div>
+                        </div>
+
+                        {{-- Chip filter bulan spesifik (muncul saat periode > 1 bulan) --}}
+                        <div class="birthday-notify-months d-none" id="birthdayMonthChips"></div>
+
+                        <ul class="birthday-notify-list list-unstyled" id="birthdayNotifyList"></ul>
+
+                        <div class="birthday-notify-footer">
+                            <small class="text-muted" id="birthdayNotifyMeta">&nbsp;</small>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" type="button" id="birthdayNotifyPrev" disabled>
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="birthdayNotifyNext" disabled>
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="dropdown user-chip">
                     <a href="#" class="d-flex align-items-center text-decoration-none gap-2" data-bs-toggle="dropdown">
                         <div class="meta d-none d-sm-block">
@@ -534,6 +582,174 @@
             if (e.key === 'Escape') closeSidebar();
         });
     });
+    /* ================= NOTIFIKASI ULANG TAHUN (ikon lonceng header) =================
+       Popup maks. 5 pegawai per halaman; periode: bulan ini, bulan depan,
+       3 bulan lagi, dst. Badge merah = jumlah UY bulan ini (termasuk hari ini). */
+    (function () {
+        var wrap = document.getElementById('birthdayNotify');
+        if (!wrap) return;
+
+        var bellIcon  = document.getElementById('birthdayBellIcon');
+        var badgeEl   = document.getElementById('birthdayBadge');
+        var subtitle  = document.getElementById('birthdayNotifySubtitle');
+        var listEl    = document.getElementById('birthdayNotifyList');
+        var metaEl    = document.getElementById('birthdayNotifyMeta');
+        var chipsEl   = document.getElementById('birthdayMonthChips');
+        var prevBtn   = document.getElementById('birthdayNotifyPrev');
+        var nextBtn   = document.getElementById('birthdayNotifyNext');
+        var periodBtns = Array.prototype.slice.call(wrap.querySelectorAll('.btn-period'));
+
+        var url        = @js(route('dashboard.birthdays'));
+        var months     = 1;
+        var month      = null; /* filter bulan spesifik */
+        var page       = 1;
+        var lastPage   = 1;
+        var total      = 0;
+        var loaded     = false;
+
+        var MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function initials(name) {
+            return String(name || '?').trim().split(/\s+/).map(function (w) { return w.charAt(0); })
+                .slice(0, 2).join('').toUpperCase();
+        }
+
+        function badge(p) {
+            if (p.days_left === 0) return '<span class="bn-badge bn-badge-today">Hari ini</span>';
+            if (p.days_left <= 7)  return '<span class="bn-badge bn-badge-soon">' + p.days_left + ' hari lagi</span>';
+            return '<span class="bn-badge">' + p.days_left + ' hari lagi</span>';
+        }
+
+        function render(data) {
+            total    = data.total;
+            lastPage = data.last_page;
+            page     = data.page;
+
+            listEl.innerHTML = data.items.length
+                ? data.items.map(function (p) {
+                    return '<li class="bn-item">' +
+                        '<span class="bn-avatar">' + escapeHtml(initials(p.name)) + '</span>' +
+                        '<div class="bn-info">' +
+                            '<a href="{{ url('/employees') }}/' + p.id + '" class="bn-name">' + escapeHtml(p.name) + '</a>' +
+                            '<small class="bn-sub">' + escapeHtml(p.unit) + '</small>' +
+                        '</div>' +
+                        '<div class="bn-date">' +
+                            '<span class="bn-date-main">' + escapeHtml(p.date_display) + '</span>' +
+                            '<small>-' + p.turning_age + ' th &middot; ' + badge(p) + '</small>' +
+                        '</div>' +
+                    '</li>';
+                }).join('')
+                : '<li class="bn-empty"><i class="bi bi-emoji-smile"></i>Tidak ada pegawai berulang tahun pada periode ini.</li>';
+
+            var from = total ? (page - 1) * data.per_page + 1 : 0;
+            var to   = Math.min(page * data.per_page, total);
+            metaEl.textContent = total ? from + '\u2013' + to + ' dari ' + total + ' pegawai' : ' ';
+
+            prevBtn.disabled = page <= 1;
+            nextBtn.disabled = page >= lastPage;
+
+            /* chip filter per bulan */
+            if ((data.monthly || []).length > 1) {
+                chipsEl.classList.remove('d-none');
+                chipsEl.innerHTML = '<button type="button" class="bn-chip' + (month === null ? ' active' : '') + '" data-month="">Semua</button>' +
+                    data.monthly.map(function (m) {
+                        return '<button type="button" class="bn-chip' + (month === m.month ? ' active' : '') + '" data-month="' + m.month + '">' +
+                            escapeHtml(m.short) + ' <span class="bn-chip-count">' + m.total + '</span></button>';
+                    }).join('');
+            } else {
+                chipsEl.classList.add('d-none');
+                chipsEl.innerHTML = '';
+            }
+        }
+
+        function load(targetPage) {
+            page = targetPage || 1;
+
+            metaEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            var params = new URLSearchParams();
+            params.set('months', months);
+            params.set('page', page);
+            if (month !== null) params.set('month', month);
+
+            fetch(url + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    render(data);
+                    var now = new Date();
+                    var label;
+                    if (month !== null) {
+                        label = MONTHS_ID[month - 1];
+                    } else if (months === 1) {
+                        label = MONTHS_ID[now.getMonth()];
+                    } else {
+                        label = MONTHS_ID[now.getMonth()] + ' s.d. ' + MONTHS_ID[((now.getMonth() + months - 1) % 12)];
+                    }
+                    subtitle.textContent = label + ' \u00b7 ' + total + ' pegawai';
+                })
+                .catch(function () { metaEl.textContent = 'Gagal memuat data.'; });
+        }
+
+        /* badge lonceng: jumlah UY bulan ini (dimuat sekali) */
+        function loadBadge() {
+            var params = new URLSearchParams();
+            params.set('months', 1);
+            params.set('page', 1);
+
+            fetch(url + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    var today = (data.items || []).filter(function (p) { return p.days_left === 0; }).length;
+
+                    if (data.total > 0) {
+                        badgeEl.textContent = data.total;
+                        badgeEl.classList.remove('d-none');
+                        bellIcon.classList.add('has-today');
+                    }
+                    if (today > 0) {
+                        badgeEl.textContent = today;
+                        badgeEl.classList.add('today');
+                    }
+                })
+                .catch(function () {});
+        }
+
+        /* buka popup -> muat daftar (lazy, sekali per perubahan) */
+        wrap.addEventListener('show.bs.dropdown', function () {
+            load(1);
+            bellIcon.classList.remove('has-today');
+        });
+
+        periodBtns.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                periodBtns.forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                months = parseInt(btn.dataset.months, 10) || 1;
+                month  = null;
+                load(1);
+            });
+        });
+
+        chipsEl.addEventListener('click', function (event) {
+            var chip = event.target.closest('.bn-chip');
+            if (!chip) return;
+
+            month = chip.dataset.month === '' ? null : parseInt(chip.dataset.month, 10);
+            load(1);
+        });
+
+        prevBtn.addEventListener('click', function () { if (page > 1) load(page - 1); });
+        nextBtn.addEventListener('click', function () { if (page < lastPage) load(page + 1); });
+
+        loadBadge();
+    })();
+
 </script>
 
 @stack('scripts')
