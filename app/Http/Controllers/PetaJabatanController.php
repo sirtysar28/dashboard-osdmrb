@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Exports\GenericExport;
+use App\Imports\PositionMapsImport;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\PositionMap;
 use App\Models\Unit;
 use App\Services\JabatanSyncService;
 use Illuminate\Http\Request;
@@ -13,28 +15,25 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * Dashboard Peta Jabatan (Catatan Masukan 21 Okt 2026, diperbarui 23 Okt 2026).
+ * Dashboard Peta Jabatan (Catatan Masukan 21 Okt 2026, diperbarui 23 Okt &
+ * 7 Nov 2026 — Point 4: kolom KERTAS KERJA lengkap).
  *
- * Memetakan sebaran pegawai ASN aktif pada jabatan fungsional per unit kerja.
- * DATA DIAMBIL LANGSUNG DARI DATA PEGAWAI EKSISTING — bukan import Excel:
- * jumlah penduduk setiap jenis jabatan dihitung otomatis dari nama jabatan
- * & jenjang fungsional pada tabel pegawai, sehingga selalu mutakhir.
+ * Halaman memadukan dua sumber data:
+ *  1. KERTAS KERJA (tabel position_maps, diisi via import Excel — format
+ *     "KERTAS KERJA EXCEL.xlsx"): Jabatan dan Jenjang, Dukungan Lintas
+ *     Program, Intervensi Program 5 T, Kualifikasi Pendidikan, Kompetensi,
+ *     Kebutuhan, Alternatif Penataan/Pemenuhan, dan Rekomendasi Utama.
+ *  2. DATA PEGAWAI AKTIF: "Pemangku Jabatan Eksisting" dihitung langsung
+ *     dari data pegawai (selalu mutakhir) & "Kesenjangan Jumlah" =
+ *     eksisting − kebutuhan. Angka snapshot pada berkas hanya dipakai
+ *     sebagai fallback bila jenis jabatan belum ada di data pegawai.
  */
 class PetaJabatanController extends Controller
 {
     /**
-     * Jenjang fungsional yang dilepas dari akhir nama jabatan untuk
-     * mendapatkan JENIS jabatan (gabungan kata dicek lebih dulu).
-     */
-    private const JENJANG = [
-        'Fungsional Ahli Utama', 'Fungsional Ahli Madya', 'Fungsional Ahli Muda', 'Fungsional Ahli Pertama',
-        'Ahli Utama', 'Ahli Madya', 'Ahli Muda', 'Ahli Pertama',
-        'Utama', 'Madya', 'Muda', 'Pertama', 'Penyelia', 'Mahir', 'Terampil', 'Pemula',
-    ];
-
-    /**
-     * Halaman utama: statistik, grafik, dan tabel peta jabatan
-     * dengan filter unit kerja (eselon I / tingkat balai) & jabatan.
+     * Halaman utama: statistik, grafik, tabel kertas kerja peta jabatan
+     * (11 kolom) & tabel sebaran per unit kerja, dengan filter unit kerja
+     * (eselon I / tingkat balai) & jabatan.
      */
     public function index(Request $request)
     {
@@ -44,27 +43,31 @@ class PetaJabatanController extends Controller
             'jabatan' => $request->input('jabatan'),
         ];
 
-        $rows = $this->buildRows($filters);
+        // pegawai fungsional aktif sesuai filter unit → dasar seluruh angka hidup
+        $employees = $this->fungsionalEmployees($filters);
 
-        // daftar jenis jabatan (untuk dropdown) — dihitung sebelum filter jabatan
-        $jabatanList = $rows->pluck('name')->unique()->sort()->values();
+        $unitTable = $this->buildUnitRows($employees);
+        $jabatanList = $unitTable->pluck('name')->unique()->sort()->values();
 
         if ($jabatan = $filters['jabatan'] ?? null) {
-            $rows = $rows->filter(fn ($r) => mb_strtolower($r->name) === mb_strtolower(trim((string) $jabatan)))->values();
+            $unitTable = $unitTable->filter(fn ($r) => mb_strtolower($r->name) === mb_strtolower(trim((string) $jabatan)))->values();
         }
 
-        $jenisCount = $rows->pluck('name')->unique()->count();
+        // ---- KERTAS KERJA: baris import + angka hidup dari data pegawai ----
+        $kertasKerja = $this->buildKertasKerjaRows($employees, $filters['jabatan'] ?? null);
+
+        $jenisCount = $jabatanList->count();
 
         // statistik ringkasan
         $summary = [
-            'existing' => (int) $rows->sum('existing_count'),
-            'jenis' => $jenisCount,
-            'units' => $rows->pluck('unit_name')->unique()->count(),
-            'average' => $jenisCount > 0 ? round($rows->sum('existing_count') / $jenisCount, 1) : 0,
+            'existing' => (int) $kertasKerja->sum('existing'),
+            'required' => (int) $kertasKerja->sum('required'),
+            'shortage' => (int) $kertasKerja->filter(fn ($r) => $r->gap !== null && $r->gap < 0)->sum(fn ($r) => abs($r->gap)),
+            'rows' => $kertasKerja->count(),
         ];
 
-        // tabel: jumlah pegawai terbanyak dulu, nama A-Z sebagai pemecah seri
-        $sorted = $rows->sort(fn ($a, $b) => [$b->existing_count, $a->name] <=> [$a->existing_count, $b->name])->values();
+        // tabel unit: jumlah pegawai terbanyak dulu, nama A-Z sebagai pemecah seri
+        $sorted = $unitTable->sort(fn ($a, $b) => [$b->existing_count, $a->name] <=> [$a->existing_count, $b->name])->values();
 
         $page = LengthAwarePaginator::resolveCurrentPage();
         $perPage = 15;
@@ -76,14 +79,20 @@ class PetaJabatanController extends Controller
             ['path' => $request->url(), 'query' => $request->query()],
         );
 
-        // grafik: 12 jenis jabatan dengan jumlah pegawai terbanyak
+        // grafik: 12 jenis jabatan dengan jumlah pegawai terbanyak (eksisting vs kebutuhan)
+        $requiredByJenis = PositionMap::all()
+            ->groupBy(fn ($r) => mb_strtolower($r->jenis()))
+            ->map(fn ($group) => (int) $group->sum('required_count'));
+
         $chart = $sorted->take(12)->map(fn ($r) => [
             'label' => $r->name,
             'existing' => $r->existing_count,
+            'required' => (int) ($requiredByJenis[mb_strtolower($r->name)] ?? 0),
         ])->values();
 
         return view('modules.peta-jabatan', [
             'summary' => $summary,
+            'kertasKerja' => $kertasKerja,
             'table' => $table,
             'chart' => $chart,
             'filters' => $filters,
@@ -92,40 +101,158 @@ class PetaJabatanController extends Controller
                 'balaiList' => Unit::where('level', 'BALAI')->ordered()->get(),
                 'jabatanList' => $jabatanList,
             ],
+            'hasKertasKerja' => PositionMap::exists(),
         ]);
     }
 
     /**
-     * Export data peta jabatan (mengikuti filter aktif) ke Excel.
+     * Import kertas kerja peta jabatan dari Excel (ganti seluruh data).
+     * Admin Bagian, Biro SDM & Super Admin.
+     */
+    public function importStore(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        $import = new PositionMapsImport();
+
+        try {
+            $count = $import->import(
+                $request->file('file')->getRealPath(),
+                $request->file('file')->getClientOriginalName()
+            );
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Berkas tidak dapat diproses. '.$e->getMessage());
+        }
+
+        return redirect()->route('modules.peta-jabatan')
+            ->with('success', "Import kertas kerja peta jabatan selesai — {$count} baris dimuat. ".
+                'Kolom "Pemangku Jabatan Eksisting" & "Kesenjangan Jumlah" tetap dihitung langsung dari data pegawai.');
+    }
+
+    /**
+     * Ubah satu baris kertas kerja peta jabatan — KHUSUS Admin Bagian
+     * & Super Admin (role "admin" saja; Biro SDM/pegawai hanya lihat).
+     * Kolom "Pemangku Jabatan Eksisting" & "Kesenjangan Jumlah" tidak
+     * diubah karena selalu dihitung otomatis dari data pegawai aktif.
+     */
+    public function update(Request $request, PositionMap $position_map)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:200'],
+            'cross_program' => ['nullable', 'string'],
+            'program_intervention' => ['nullable', 'string'],
+            'education_qualification' => ['nullable', 'string'],
+            'competency' => ['nullable', 'string'],
+            'required_count' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'fulfillment_alternative' => ['nullable', 'string'],
+            'main_recommendation' => ['nullable', 'string'],
+        ]);
+
+        $position_map->update($data);
+
+        AuditLog::record(AuditLog::EVENT_UPDATE, 'peta-jabatan',
+            'Ubah baris kertas kerja peta jabatan: '.$position_map->name);
+
+        return redirect()->route('modules.peta-jabatan')
+            ->with('success', 'Baris kertas kerja "'.$position_map->name.'" berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus satu baris kertas kerja peta jabatan — KHUSUS Admin Bagian
+     * & Super Admin (role "admin" saja; Biro SDM/pegawai hanya lihat).
+     */
+    public function destroy(PositionMap $position_map)
+    {
+        $name = $position_map->name;
+        $position_map->delete();
+
+        AuditLog::record(AuditLog::EVENT_DELETE, 'peta-jabatan',
+            'Hapus baris kertas kerja peta jabatan: '.$name);
+
+        return redirect()->route('modules.peta-jabatan')
+            ->with('success', 'Baris kertas kerja "'.$name.'" berhasil dihapus.');
+    }
+
+    /**
+     * Unduh template / data terakhir kertas kerja peta jabatan (format Excel).
+     */
+    public function template()
+    {
+        $headings = [
+            'No', 'Jabatan dan Jenjang', 'Dukungan Lintas Program', 'Intervensi Program 5 T',
+            'Kualifikasi Pendidikan', 'Kompetensi', 'Kebutuhan', 'Pemangku jabatan eksisiting',
+            'Kesenjangan Jumlah', 'Alternatif Penataan/Pemenuhan', 'Rekomendasi Utama',
+        ];
+
+        $rows = PositionMap::orderBy('sort_order')->get();
+
+        $export = $rows->isNotEmpty()
+            ? $rows->values()->map(fn ($r, $i) => [
+                'No' => $i + 1,
+                'Jabatan dan Jenjang' => $r->name,
+                'Dukungan Lintas Program' => $r->cross_program,
+                'Intervensi Program 5 T' => $r->program_intervention,
+                'Kualifikasi Pendidikan' => $r->education_qualification,
+                'Kompetensi' => $r->competency,
+                'Kebutuhan' => $r->required_count,
+                'Pemangku jabatan eksisiting' => $r->existing_count,
+                'Kesenjangan Jumlah' => $r->gap_count,
+                'Alternatif Penataan/Pemenuhan' => $r->fulfillment_alternative,
+                'Rekomendasi Utama' => $r->main_recommendation,
+            ])
+            : collect([[
+                'No' => 1,
+                'Jabatan dan Jenjang' => 'Analis Kepegawaian Ahli Muda',
+                'Dukungan Lintas Program' => 'Penataan organisasi, Pengelolaan SDM',
+                'Intervensi Program 5 T' => 'Trans Gotong Royong',
+                'Kualifikasi Pendidikan' => "Berstatus PNS\nBerijazah paling rendah sarjana/diploma empat bidang ...",
+                'Kompetensi' => 'Mampu mengelola dan mengembangkan proses penyelenggaraan manajemen ASN ...',
+                'Kebutuhan' => 5,
+                'Pemangku jabatan eksisiting' => 3,
+                'Kesenjangan Jumlah' => -2,
+                'Alternatif Penataan/Pemenuhan' => "1. perpindahan jabatan melalui uji kompetensi\n2. pengembangan kompetensi pegawai",
+                'Rekomendasi Utama' => "1. pengembangan kompetensi internal\n2. penerimaan mutasi",
+            ]]);
+
+        return Excel::download(
+            new GenericExport($export, $headings, 'Kertas Kerja Peta Jabatan'),
+            'template-kertas-kerja-peta-jabatan.xlsx',
+        );
+    }
+
+    /**
+     * Export kertas kerja peta jabatan (mengikuti filter aktif) ke Excel —
+     * 11 kolom lengkap termasuk angka hidup eksisting & kesenjangan.
      */
     public function export(Request $request)
     {
         $filters = $request->only(['es1', 'balai', 'jabatan']);
+        $rows = $this->buildKertasKerjaRows($this->fungsionalEmployees($filters), $filters['jabatan'] ?? null);
 
-        $rows = $this->buildRows($filters);
-
-        if ($jabatan = $filters['jabatan'] ?? null) {
-            $rows = $rows->filter(fn ($r) => mb_strtolower($r->name) === mb_strtolower(trim((string) $jabatan)));
-        }
-
-        $export = $rows
-            ->sort(fn ($a, $b) => [$a->name, $a->unit_name] <=> [$b->name, $b->unit_name])
-            ->values()
-            ->map(fn ($r) => [
-                'Jenis Jabatan Fungsional' => $r->name,
-                'Unit Kerja' => $r->unit_name,
-                'Jenjang Terisi' => $r->levels_string,
-                'Jumlah Pegawai' => $r->existing_count,
-            ]);
+        $export = $rows->values()->map(fn ($r, $i) => [
+            'No' => $i + 1,
+            'Jabatan dan Jenjang' => $r->name,
+            'Dukungan Lintas Program' => $r->cross_program,
+            'Intervensi Program 5 T' => $r->program_intervention,
+            'Kualifikasi Pendidikan' => $r->education_qualification,
+            'Kompetensi' => $r->competency,
+            'Kebutuhan' => $r->required ?? 0,
+            'Pemangku Jabatan Eksisting' => $r->existing,
+            'Kesenjangan Jumlah' => $r->gap,
+            'Alternatif Penataan/Pemenuhan' => $r->fulfillment_alternative,
+            'Rekomendasi Utama' => $r->main_recommendation,
+        ]);
 
         if ($export->isEmpty()) {
             return back()->with('error', 'Tidak ada data peta jabatan untuk diekspor.');
         }
 
-        AuditLog::record(AuditLog::EVENT_UPDATE, 'peta-jabatan', 'Ekspor data peta jabatan ('.$export->count().' baris)');
+        AuditLog::record(AuditLog::EVENT_UPDATE, 'peta-jabatan', 'Ekspor kertas kerja peta jabatan ('.$export->count().' baris)');
 
         return Excel::download(
-            new GenericExport($export, array_keys($export->first()), 'Peta Jabatan'),
+            new GenericExport($export, array_keys($export->first()), 'Kertas Kerja Peta Jabatan'),
             'peta-jabatan-'.now()->format('Ymd-His').'.xlsx',
         );
     }
@@ -133,13 +260,13 @@ class PetaJabatanController extends Controller
     /* ================= HELPERS ================= */
 
     /**
-     * Bangun baris peta jabatan langsung dari DATA PEGAWAI AKTIF:
-     * kelompokkan pegawai ASN berjabatan fungsional per
-     * (jenis jabatan, unit kerja) beserta sebaran jennjangnya.
+     * Kumpulan pegawai ASN aktif berjabatan FUNGSIONAL TERTENTU sesuai
+     * filter unit kerja — diurai menjadi [jenis, jenjang, unit] untuk
+     * kebutuhan tabel sebaran & pencocokan kertas kerja.
      *
-     * @return Collection<int, object>
+     * @return Collection<int, object{jenis: string, jenjang: ?string, unit_name: string}>
      */
-    private function buildRows(array $filters): Collection
+    private function fungsionalEmployees(array $filters): Collection
     {
         $query = Employee::query()
             ->with('unit')
@@ -169,17 +296,38 @@ class PetaJabatanController extends Controller
                 continue;
             }
 
-            [$jenis, $jenjang] = $this->splitJenjang($employee->position_name);
+            [$jenis, $jenjang] = PositionMap::splitJenjang($employee->position_name);
             $jenjang = $jenjang ?: (trim((string) $employee->functional_level) ?: null);
-            $unitName = $employee->unit?->name ?? 'Tanpa Unit Kerja';
-            $key = mb_strtolower($jenis).'|'.mb_strtolower($unitName);
+
+            $rows->push((object) [
+                'jenis' => $jenis,
+                'jenjang' => $jenjang,
+                'unit_name' => $employee->unit?->name ?? 'Tanpa Unit Kerja',
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Tabel sebaran per (jenis jabatan, unit kerja) — detail pendukung.
+     *
+     * @param  Collection<int, object>  $employees
+     * @return Collection<int, object>
+     */
+    private function buildUnitRows(Collection $employees): Collection
+    {
+        $rows = collect();
+
+        foreach ($employees as $employee) {
+            $key = mb_strtolower($employee->jenis).'|'.mb_strtolower($employee->unit_name);
 
             $row = $rows->get($key);
 
             if (! $row) {
                 $row = (object) [
-                    'name' => $jenis,
-                    'unit_name' => $unitName,
+                    'name' => $employee->jenis,
+                    'unit_name' => $employee->unit_name,
                     'existing_count' => 0,
                     'levels' => [],
                 ];
@@ -188,12 +336,11 @@ class PetaJabatanController extends Controller
 
             $row->existing_count++;
 
-            if ($jenjang) {
-                $row->levels[$jenjang] = ($row->levels[$jenjang] ?? 0) + 1;
+            if ($employee->jenjang) {
+                $row->levels[$employee->jenjang] = ($row->levels[$employee->jenjang] ?? 0) + 1;
             }
         }
 
-        // atribut turunan: ringkasan jenjang per baris
         return $rows->values()->each(function ($row) {
             ksort($row->levels);
             $row->levels_string = $row->levels === []
@@ -203,29 +350,100 @@ class PetaJabatanController extends Controller
     }
 
     /**
-     * Pisahkan nama jabatan lengkap menjadi [JENIS jabatan, JENJANG]:
-     * "Analis Kepegawaian Ahli Muda" → ["Analis Kepegawaian", "Ahli Muda"].
-     * Nama tanpa jenjang ("Arsiparis") dikembalikan apa adanya.
+     * Bangun baris KERTAS KERJA PETA JABATAN (11 kolom):
+     * baris hasil import dipadukan angka hidup dari data pegawai —
+     * "Pemangku Jabatan Eksisting" & "Kesenjangan Jumlah" selalu dihitung
+     * dari data pegawai aktif (sesuai filter); snapshot berkas dipakai bila
+     * jenis jabatan belum terpetakan di data pegawai. Kombinasi jenis+jenjang
+     * yang ada pemangkunya namun belum ada di kertas kerja ditampilkan
+     * dengan penanda "belum dipetakan" agar tidak ada data hilang.
      *
-     * @return array{0: string, 1: ?string}
+     * @param  Collection<int, object>  $employees
+     * @return Collection<int, object>
      */
-    private function splitJenjang(string $positionName): array
+    private function buildKertasKerjaRows(Collection $employees, ?string $jabatanFilter): Collection
     {
-        $jenis = trim((string) preg_replace('/\s+/u', ' ', $positionName));
+        // jenis (lower) => [jenjang (lower, '' bila tanpa jenjang) => jumlah]
+        $live = [];
 
-        foreach (self::JENJANG as $level) {
-            $pattern = '/\s+'.preg_quote($level, '/').'$/iu';
+        foreach ($employees as $employee) {
+            $jenisKey = mb_strtolower($employee->jenis);
+            $jenjangKey = mb_strtolower((string) $employee->jenjang);
+            $live[$jenisKey][$jenjangKey] = ($live[$jenisKey][$jenjangKey] ?? 0) + 1;
+        }
 
-            if (preg_match($pattern, $jenis)) {
-                $stripped = trim((string) preg_replace($pattern, '', $jenis));
+        $rows = collect();
+        $matched = []; // jenis|jenjang (lower) yang telah terwakili kertas kerja
 
-                if ($stripped !== '') {
-                    return [$stripped, $level];
+        foreach (PositionMap::orderBy('sort_order')->orderBy('id')->get() as $map) {
+            [$jenis, $jenjang] = PositionMap::splitJenjang($map->name);
+            $jenisKey = mb_strtolower($jenis);
+            $jenjangKey = mb_strtolower((string) $jenjang);
+
+            if ($jabatanFilter !== null && $jenisKey !== mb_strtolower(trim((string) $jabatanFilter))) {
+                continue;
+            }
+
+            $matched[$jenisKey.'|'.$jenjangKey] = true;
+
+            // jenis jabatan dikenali di data pegawai → angka hidup; bila tidak → snapshot berkas
+            $hasLive = array_key_exists($jenisKey, $live);
+            $existing = $hasLive ? ($live[$jenisKey][$jenjangKey] ?? 0) : $map->existing_count;
+            $gap = $existing - $map->required_count;
+
+            $rows->push((object) [
+                'id' => $map->id,
+                'name' => $map->name,
+                'jenis' => $jenis,
+                'jenjang' => $jenjang,
+                'cross_program' => $map->cross_program,
+                'program_intervention' => $map->program_intervention,
+                'education_qualification' => $map->education_qualification,
+                'competency' => $map->competency,
+                'required' => $map->required_count,
+                'existing' => $existing,
+                'existing_from_snapshot' => ! $hasLive,
+                'gap' => $gap,
+                'fulfillment_alternative' => $map->fulfillment_alternative,
+                'main_recommendation' => $map->main_recommendation,
+                'outside' => false,
+            ]);
+        }
+
+        // kombinasi jenis+jenjang yang ADA pemangkunya tetapi belum di kertas kerja
+        foreach ($live as $jenisKey => $levels) {
+            foreach ($levels as $jenjangKey => $count) {
+                if (isset($matched[$jenisKey.'|'.$jenjangKey])) {
+                    continue;
                 }
+
+                if ($jabatanFilter !== null && $jenisKey !== mb_strtolower(trim((string) $jabatanFilter))) {
+                    continue;
+                }
+
+                $sample = $employees->first(fn ($e) => mb_strtolower($e->jenis) === $jenisKey);
+
+                $rows->push((object) [
+                    'id' => null, // kombinasi jenis+jenjang di luar kertas kerja — bukan baris DB
+                    'name' => $jenjangKey !== '' ? $sample->jenis.' '.mb_convert_case($jenjangKey, MB_CASE_TITLE, 'UTF-8') : $sample->jenis,
+                    'jenis' => $sample->jenis,
+                    'jenjang' => $jenjangKey !== '' ? mb_convert_case($jenjangKey, MB_CASE_TITLE, 'UTF-8') : null,
+                    'cross_program' => null,
+                    'program_intervention' => null,
+                    'education_qualification' => null,
+                    'competency' => null,
+                    'required' => null,
+                    'existing' => $count,
+                    'existing_from_snapshot' => false,
+                    'gap' => null,
+                    'fulfillment_alternative' => null,
+                    'main_recommendation' => null,
+                    'outside' => true,
+                ]);
             }
         }
 
-        return [$jenis, null];
+        return $rows->values();
     }
 
     /**

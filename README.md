@@ -884,3 +884,41 @@ Struktural**, **Data Jabatan Pelaksana** (termasuk heading "Catatan Data").
 penyelarasan unit), `composer install --no-dev`, `php artisan config:clear &&
 php artisan route:clear && php artisan view:clear`. Data peta jabatan diisi
 melalui menu **Peta Jabatan → Import Excel**.
+
+## 🚀 Update 7 November 2026 (v1.1.1) — Point 4: Kertas Kerja Peta Jabatan Lengkap
+
+### 1. Halaman Peta Jabatan kini menampilkan 10 kolom KERTAS KERJA lengkap
+Mengikuti format berkas **KERTAS KERJA EXCEL.xlsx**, tabel utama **Kertas Kerja
+Peta Jabatan** memuat seluruh kolom: **Jabatan dan Jenjang**, **Dukungan Lintas
+Program**, **Intervensi Program 5 T**, **Kualifikasi Pendidikan**, **Kompetensi**,
+**Kebutuhan** (kebutuhan pegawai), **Pemangku Jabatan Eksisting**, **Kesenjangan
+Jumlah**, **Alternatif Penataan/Pemenuhan**, dan **Rekomendasi Utama**. Teks
+panjang (kualifikasi, kompetensi, alternatif, rekomendasi) diringkas 3 baris —
+klik sel untuk membentangkan.
+
+### 2. Import Excel kertas kerja (ganti seluruh data)
+Tombol **Import Excel** (Admin Bagian, Biro SDM & Super Admin) memuat berkas
+kertas kerja 11 kolom — posisi & ejaan judul kolom dikenali otomatis (tahan typo
+"eksisiting", header boleh tidak di baris 1), sel multi-baris dibersihkan
+otomatis. Import bersifat atomik: seluruh data lama diganti, gagal di tengah
+jalan → data lama tetap utuh. Tombol **Template** menyediakan berkas format
+(atau data terakhir); **Ekspor Excel** mengeluarkan 11 kolom sesuai filter.
+
+### 3. Eksisting & kesenjangan tetap dihitung langsung dari data pegawai
+Mempertahankan prinsip 23 Okt 2026: kolom **Pemangku Jabatan Eksisting** dan
+**Kesenjangan Jumlah** (= eksisting − kebutuhan) dihitung **langsung dari data
+pegawai aktif** mengikuti filter unit kerja — angka pada berkas hanya menjadi
+*fallback* (ditandai "data kertas kerja") bila jenis jabatan belum ada
+pemangkunya di data pegawai. Kombinasi jabatan+jenjang yang ada pemangkunya
+namun belum tercantum di kertas kerja tetap tampil dengan penanda
+"belum dipetakan" agar tidak ada data hilang.
+
+### 4. Statistik & grafik diperbarui
+Kartu ringkasan: **Pemangku Eksisting**, **Kebutuhan Pegawai**, **Total
+Kekurangan** (akumulasi kesenjangan negatif), **Jabatan Terpetakan**. Grafik
+menjadi **Eksisting vs Kebutuhan** per jenis jabatan. Tabel **Detail Sebaran
+per Unit Kerja** (jenis × unit × jenjang) tetap tersedia sebagai pendukung.
+
+**Deploy:** `php artisan migrate` (1 migrasi baru: tabel `position_maps`), lalu
+muat berkas **KERTAS KERJA EXCEL.xlsx** melalui menu **Peta Jabatan → Import
+Excel**. Uji otomatis: `php artisan test --filter=UpdateNovember7Test`.

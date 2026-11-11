@@ -79,6 +79,22 @@ Route::middleware('auth')->group(function () {
         Route::get('/modul/analisis-jabatan-pelaksana', [ModuleController::class, 'analisisJabatanPelaksana'])->name('modules.analisis-jabatan-pelaksana');
         Route::get('/modul/peta-jabatan', [PetaJabatanController::class, 'index'])->name('modules.peta-jabatan');
         Route::get('/modul/peta-jabatan/export', [PetaJabatanController::class, 'export'])->name('modules.peta-jabatan.export');
+
+        // Kertas kerja peta jabatan: import Excel & unduh template
+        // (Point 4, 7 Nov 2026 — Admin Bagian, Biro SDM & Super Admin)
+        Route::middleware('role:admin,biro_sdm,super_admin')->group(function () {
+            Route::get('/modul/peta-jabatan/template', [PetaJabatanController::class, 'template'])->name('modules.peta-jabatan.template');
+            Route::post('/modul/peta-jabatan/import', [PetaJabatanController::class, 'importStore'])->name('modules.peta-jabatan.import');
+        });
+
+        // Ubah & hapus baris kertas kerja peta jabatan — HANYA role admin
+        // (Admin Bagian & Super Admin; Biro SDM/pegawai tidak boleh).
+        Route::middleware('role:admin,super_admin')->group(function () {
+            Route::put('/modul/peta-jabatan/{position_map}', [PetaJabatanController::class, 'update'])
+                ->name('modules.peta-jabatan.update')->whereNumber('position_map');
+            Route::delete('/modul/peta-jabatan/{position_map}', [PetaJabatanController::class, 'destroy'])
+                ->name('modules.peta-jabatan.destroy')->whereNumber('position_map');
+        });
         Route::get('/modul/reformasi-birokrasi', [ModuleController::class, 'reformasiBirokrasi'])->name('modules.reformasi-birokrasi');
         Route::get('/modul/manajemen-talenta', [ModuleController::class, 'manajemenTalenta'])->name('modules.manajemen-talenta');
         Route::get('/modul/diklat', [ModuleController::class, 'diklat'])->name('modules.diklat');
