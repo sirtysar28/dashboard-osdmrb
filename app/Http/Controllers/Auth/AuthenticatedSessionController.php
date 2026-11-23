@@ -31,8 +31,11 @@ class AuthenticatedSessionController extends Controller
      *
      * Hanya huruf (tanpa angka & karakter ambigu seperti I/O) agar mudah dibaca.
      * Panjang kode SELALU 5 karakter (konsisten, tidak acak 5-6).
+     *
+     * @param  string $context  konteks form: 'login' atau 'register'
+     *                           (menentukan key session: login_captcha / register_captcha)
      */
-    private function generateCaptcha(): string
+    public function generateCaptcha(string $context = 'login'): string
     {
         $characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // tanpa I & O agar tidak ambigu
         $length = 5;
@@ -42,18 +45,22 @@ class AuthenticatedSessionController extends Controller
             $code .= $characters[random_int(0, strlen($characters) - 1)];
         }
 
-        session(['login_captcha' => $code]);
+        session([$context.'_captcha' => $code]);
 
         return $code;
     }
 
     /**
      * Refresh the login captcha (AJAX).
+     * Dipakai form login maupun register — konteks ditentukan query ?for=
+     * (default 'login' agar kompatibel dengan form login yang sudah ada).
      */
-    public function refreshCaptcha(): JsonResponse
+    public function refreshCaptcha(Request $request): JsonResponse
     {
+        $context = $request->query('for') === 'register' ? 'register' : 'login';
+
         return response()->json([
-            'code' => $this->generateCaptcha(),
+            'code' => $this->generateCaptcha($context),
         ]);
     }
 
@@ -73,8 +80,28 @@ class AuthenticatedSessionController extends Controller
         $user = User::where('email', $request->string('email')->lower())->first();
 
         $credentialsValid = $user
-            && $user->is_active
             && Auth::validate($request->only('email', 'password'));
+
+        // kredensial benar namun akun belum disetujui / ditolak admin:
+        // sampaikan alasannya secara jelas agar pendaftar tidak bingung
+        if ($credentialsValid && $user->isPendingApproval()) {
+            AuditLog::record(AuditLog::EVENT_LOGIN_FAILED, 'auth', 'Login ditolak — akun '.$user->email.' masih menunggu persetujuan admin', user: $user);
+
+            session(['login_captcha' => null]);
+
+            return back()->withErrors(['email' => 'Akun Anda masih menunggu persetujuan Administrator dan belum dapat digunakan untuk login. Silakan cek email Anda secara berkala untuk pemberitahuan persetujuan.'])->onlyInput('email');
+        }
+
+        if ($credentialsValid && $user->isRejected()) {
+            AuditLog::record(AuditLog::EVENT_LOGIN_FAILED, 'auth', 'Login ditolak — pendaftaran akun '.$user->email.' ditolak admin', user: $user);
+
+            session(['login_captcha' => null]);
+
+            return back()->withErrors(['email' => 'Pendaftaran akun Anda tidak disetujui oleh Administrator. Silakan hubungi Administrator Utama untuk informasi lebih lanjut.'])->onlyInput('email');
+        }
+
+        $credentialsValid = $credentialsValid
+            && $user->is_active;
 
         if (! $credentialsValid) {
             \Illuminate\Support\Facades\RateLimiter::hit($request->throttleKey());

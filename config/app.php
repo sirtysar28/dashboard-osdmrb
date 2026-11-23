@@ -17,19 +17,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Application Version
-    |--------------------------------------------------------------------------
-    |
-    | Penomoran versi dashboard: MAJOR.FEATURE.PATCH — digit ke-2 naik satu
-    | tingkat untuk pembaruan besar/fitur baru (mis. 1.2.0), digit ke-3 untuk
-    | pembaruan kecil/perbaikan (mis. 1.2.1).
-    |
-    */
-
-    'version' => env('APP_VERSION', '1.1.0'),
-
-    /*
-    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |
@@ -40,6 +27,7 @@ return [
     */
 
     'env' => env('APP_ENV', 'production'),
+    'version' => env('APP_VERSION', '1.0.0'),
 
     /*
     |--------------------------------------------------------------------------
@@ -78,7 +66,7 @@ return [
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

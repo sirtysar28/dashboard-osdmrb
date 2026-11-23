@@ -211,14 +211,27 @@ class ModuleController extends Controller
             ->with('jobLevel')
             ->get();
 
-        // mode nama umum: master hasil sinkronisasi 28 Sept yang memakai nama
-        // jabatan LENGKAP (mis. "Kepala Biro Organisasi...") dilipat ke bentuk
-        // umumnya — hanya master bernama umum yang ditampilkan sebagai baris
+        // mode nama umum: setiap jabatan master dilipat ke NAMA JABATAN UMUM
+        // ("Direktur Pengembangan ..." → "Direktur") lalu baris dengan nama
+        // umum sama DIGABUNG menjadi satu — Catatan Masukan 19 Nov 2026:
+        // "Direktur Pengembangan ..." tergabung dengan "Direktur".
         if ($generic) {
-            $master = $master->filter(
-                fn ($p) => JabatanSyncService::normalize(JabatanSyncService::genericJabatan($p->name))
-                    === JabatanSyncService::normalize($p->name)
-            );
+            $folded = collect();
+
+            foreach ($master as $p) {
+                $genericName = JabatanSyncService::genericJabatan($p->name);
+                $key = JabatanSyncService::normalize($genericName);
+
+                // utamakan baris master yang namanya memang bentuk umum
+                // (mis. STR-DIREKTUR "Direktur") sebagai wakil baris gabungan
+                if (! $folded->has($key) || JabatanSyncService::normalize($p->name) === $key) {
+                    $row = clone $p;
+                    $row->name = $genericName;
+                    $folded->put($key, $row);
+                }
+            }
+
+            $master = $folded->values();
         }
 
         // pegawai ASN aktif sesuai jenis jabatan yang dianalisis

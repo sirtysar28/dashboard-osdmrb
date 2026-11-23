@@ -15,6 +15,14 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, HasRoles, Notifiable;
 
+    /* ========== STATUS PERSETUJUAN PENDAFTARAN ==========
+       pending  : mendaftar mandiri, menunggu persetujuan admin
+       approved : sudah disetujui (atau dibuat langsung oleh admin)
+       rejected : ditolak admin — tidak dapat login           */
+    public const REGISTRATION_PENDING = 'pending';
+    public const REGISTRATION_APPROVED = 'approved';
+    public const REGISTRATION_REJECTED = 'rejected';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -26,6 +34,9 @@ class User extends Authenticatable
         'password',
         'employee_id',
         'is_active',
+        'registration_status',
+        'approved_at',
+        'approved_by',
         'otp_code',
         'otp_expires_at',
         'otp_sent_at',
@@ -53,6 +64,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'approved_at' => 'datetime',
             'otp_expires_at' => 'datetime',
             'otp_sent_at' => 'datetime',
         ];
@@ -66,6 +78,24 @@ class User extends Authenticatable
     }
 
     /* ================= HELPERS ================= */
+
+    /** Akun hasil pendaftaran mandiri yang belum disetujui admin. */
+    public function isPendingApproval(): bool
+    {
+        return $this->registration_status === self::REGISTRATION_PENDING;
+    }
+
+    /** Pendaftaran ditolak admin. */
+    public function isRejected(): bool
+    {
+        return $this->registration_status === self::REGISTRATION_REJECTED;
+    }
+
+    /** Scope akun yang menunggu persetujuan. */
+    public function scopePendingApproval($query)
+    {
+        return $query->where('registration_status', self::REGISTRATION_PENDING);
+    }
 
     /**
      * Administrator Utama (super admin) — satu-satunya yang boleh

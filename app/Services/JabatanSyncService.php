@@ -97,6 +97,16 @@ class JabatanSyncService
             return trim((string) $positionName);
         }
 
+        // Catatan Masukan 19 Nov 2026: buang awalan penugasan sementara
+        // (Plt. / Plh. / Pelaksana Tugas / Pelaksana Harian / An.) agar
+        // "Plt. Direktur Pengembangan ..." tetap tergabung ke "Direktur"
+        // dan tidak muncul sebagai baris jabatan terpisah.
+        $normalized = preg_replace(
+            '/^(?:PLT\.?|PLH\.?|PELAKSANA TUGAS|PELAKSANA HARIAN|AN\.?)\s+/iu',
+            '',
+            $normalized
+        );
+
         // urutan penting: awalan terpanjang diperiksa lebih dulu
         $map = [
             'SEKRETARIS INSPEKTUR JENDERAL' => 'Sekretaris Inspektorat Jenderal',

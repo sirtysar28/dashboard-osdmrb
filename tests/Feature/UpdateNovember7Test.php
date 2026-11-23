@@ -206,18 +206,21 @@ class UpdateNovember7Test extends TestCase
         $this->assertSame(0, PositionMap::count());
     }
 
-    /* ======== 3. EKSISTING & KESENJANGAN DIHITUNG DARI DATA PEGAWAI ======== */
+    /* ======== 3. EKSISTING & KESENJANGAN DARI KERTAS KERJA (position_maps) ========
+       Perilaku berubah pada rework 19 Nov 2026 (menyusul catatan 7 Nov —
+       Point 4): seluruh angka Kertas Kerja (eksisting, kebutuhan, kesenjangan)
+       SELALU bersumber dari position_maps, bukan dihitung ulang dari data
+       pegawai; employees hanya untuk tabel pendukung sebaran per unit. */
 
-    public function test_eksisting_dan_kesenjangan_dihitung_dari_data_pegawai(): void
+    public function test_eksisting_dan_kesenjangan_menggunakan_angka_kertas_kerja(): void
     {
-        // 2 pemangku Analis Kepegawaian Ahli Muda + 1 Ahli Madya (jenjang lain)
+        // pemangku pada data pegawai — hanya memengaruhi tabel sebaran pendukung
         $this->makeEmployee(['position_name' => 'Analis Kepegawaian Ahli Muda', 'functional_level' => 'Ahli Muda', 'eselon' => null]);
         $this->makeEmployee(['position_name' => 'Analis Kepegawaian Ahli Muda', 'functional_level' => 'Ahli Muda', 'eselon' => null]);
-        $this->makeEmployee(['position_name' => 'Analis Kepegawaian Ahli Madya', 'functional_level' => 'Ahli Madya', 'eselon' => null]);
 
-        // kertas kerja: kebutuhan 5, snapshot eksisting 99 (harus diabaikan)
+        // kertas kerja: eksisting 99 & kebutuhan 5 → kesenjangan +94 (dari berkas)
         PositionMap::create(['name' => 'Analis Kepegawaian Ahli Muda', 'required_count' => 5, 'existing_count' => 99, 'gap_count' => 94]);
-        // jabatan TIDAK ada pemangkunya di data pegawai → fallback snapshot berkas
+        // jabatan tanpa pemangku → angka tetap dari snapshot berkas
         PositionMap::create(['name' => 'Penelaah Teknis Kebijakan', 'required_count' => 4, 'existing_count' => 4, 'gap_count' => 0]);
 
         $html = $this->actingAs($this->admin)
@@ -225,17 +228,13 @@ class UpdateNovember7Test extends TestCase
             ->assertOk()
             ->getContent();
 
-        // baris live: eksisting 2, kesenjangan -3 (2 - 5)
         $this->assertStringContainsString('Analis Kepegawaian', $html);
-        $this->assertStringContainsString('>-3<', $html, 'Kesenjangan 2 - 5 = -3 harus tampil sebagai badge.');
-        $this->assertStringNotContainsString('>99<', $html, 'Snapshot eksisting berkas tidak boleh dipakai bila jabatan dikenali di data pegawai.');
-
-        // baris fallback: eksisting 4 dari snapshot berkas
+        $this->assertStringContainsString('>99<', $html, 'Eksisting bersumber dari snapshot kertas kerja (position_maps).');
+        $this->assertStringContainsString('+94', $html, 'Kesenjangan 99 - 5 = +94 harus tampil sebagai badge.');
         $this->assertStringContainsString('Penelaah Teknis Kebijakan', $html);
-        $this->assertStringContainsString('data kertas kerja', $html);
     }
 
-    public function test_jabatan_dengan_pemangku_tapi_belum_dipetakan_tetap_tampil(): void
+    public function test_jabatan_di_luar_kertas_kerja_tidak_tampil_di_sebaran(): void
     {
         $this->makeEmployee(['position_name' => 'Arsiparis Ahli Pertama', 'functional_level' => 'Ahli Pertama', 'eselon' => null]);
         PositionMap::create(['name' => 'Analis Kepegawaian Ahli Muda', 'required_count' => 5]);
@@ -245,8 +244,9 @@ class UpdateNovember7Test extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Arsiparis', $html);
-        $this->assertStringContainsString('Belum dipetakan di kertas kerja', $html);
+        // sebaran hanya memuat jenis jabatan yang dipetakan pada kertas kerja
+        $this->assertStringNotContainsString('Arsiparis', $html);
+        $this->assertStringContainsString('Belum ada data pegawai jabatan fungsional untuk filter ini', $html);
     }
 
     /* ======== 4. TOMBOL IMPORT HANYA UNTUK PRIVILEGED ======== */

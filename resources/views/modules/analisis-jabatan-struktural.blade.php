@@ -187,7 +187,7 @@
             <ul class="small text-muted mb-0 ps-3">
                 <li class="mb-2">Formasi struktural kosong menjadi bahan pengisian jabatan melalui sistem merit &amp; manajemen talenta.</li>
                 <li class="mb-2">Kesenjangan beban kerja antar unit eselon II perlu ditinjau pada penyusunan formasi berikutnya.</li>
-                <li>Data pejabat diambil dari kolom eselon &amp; nama jabatan pegawai aktif serta riwayat jabatan aktif (Eselon I, II, III, IV) — tiap jabatan menampilkan pimpinannya dan dikelompokkan memakai <strong>nama jabatan umum</strong> (Kepala Biro, Direktur, dst.) sesuai daftar nama jabatan.</li>
+                <li>Data pejabat diambil dari kolom eselon &amp; nama jabatan pegawai aktif serta riwayat jabatan aktif (Eselon I, II, III, IV) — tiap jabatan menampilkan pimpinannya dan dikelompokkan memakai <strong>nama jabatan umum</strong> (Kepala Biro, Direktur, dst.) sesuai daftar nama jabatan. Seluruh variasi nama jabatan yang sejenis digabungkan ke satu baris umumnya — mis. <em>"Direktur Pengembangan …"</em> terhitung dalam baris <strong>Direktur</strong> (Catatan Masukan 19 Nov 2026).</li>
                 <li>Eselon I: Sekretaris Jenderal, Direktur Jenderal, Inspektur Jenderal; Eselon II: Direktur, Sekretaris Ditjen, Kepala Pusat, Kepala Biro, Inspektur, Sekretaris Itjen, Kepala Balai Besar; Eselon III: Kepala Bagian, Kepala Balai; Eselon IV: Kepala Subbagian.</li>
             </ul>
         </div>

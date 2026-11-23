@@ -15,6 +15,8 @@ Format `MAJOR.FEATURE.PATCH` (env `APP_VERSION`, tampil di footer aplikasi):
 
 | Versi | Tanggal | Ringkasan |
 |---|---|---|
+| `1.2.0` | 19 Nov 2026 | **Catatan Masukan 19 Nov** — Data Jabatan Struktural: variasi nama jabatan sejenis digabung ke nama umum ("Direktur Pengembangan …" terhitung dalam baris Direktur), filter baru **Unit Kerja (Eselon II)** di Peta Jabatan, menu baru **Pengajuan Layanan** (KGB, kenaikan pangkat, pensiun, tugas/izin belajar, pengembangan kompetensi + upload Nota Dinas & link bukti dukung, daftar 10 item per halaman), menu baru **Data Renang Pegawai** (filter, card Total/Lulus/Belum Lulus, rekap per unit kerja, daftar pegawai), modul **Biro OSDMRB → Analisis Kepegawaian** + susunan menu sidebar baru (grup Data & Master, Analisis Kepegawaian, Layanan Kepegawaian, Pendukung, Monitoring) |
+| `1.1.1` | 7 Nov 2026 | **Catatan Masukan 7 Nov (Point 4)** — kertas kerja Peta Jabatan 11 kolom lengkap (Dukungan Lintas Program, Intervensi 5T, Kualifikasi, Kompetensi, Kebutuhan, Eksisting, Kesenjangan, Alternatif, Rekomendasi), import Excel atomik + template + ekspor sesuai filter, ubah/hapus baris (Admin), ringkasan & grafik Eksisting vs Kebutuhan |
 | `1.0.3` | 9 Okt 2026 | **Catatan Masukan 7 Okt** — urutan pilihan unit kerja dirapikan di semua dropdown (Eselon I dashboard, form pegawai ASN/Non ASN, master data), filter pendidikan/golongan/gender tidak lagi tergabung Non ASN, CV riwayat pendidikan dimulai dari Pendidikan 1 + jenjang dituliskan (Diploma/Sarjana/Magister/Doktor, migrasi `2026_10_09_000002` merapikan data terbalik), analis jabatan fungsional: pemangku diganti jumlah pegawai yang bisa diklik (popup daftar pegawai), formasi kosong tidak dimunculkan (fungsional & struktural), jabatan salah nama "Sekretaris Direktur Jenderal" dihapus, penyempurnaan tampilan mobile (input 16px anti-zoom iOS, safe-area, tombol filter mudah di-tap) |
 | `1.0.2` | 7 Okt 2026 | **Catatan Masukan 30 Sept** — urutan unit kerja resmi (eselon I–III & balai, migrasi `sort_order`), card hasil filter dashboard dipindah ke atas, filter unit kerja "kosong", urutan riwayat pendidikan (P1=S1) + Tingkat terakhir pindah ke Data Personal CV, dropdown perguruan tinggi dengan kotak pencarian, analis jabatan fungsional/struktural/pelaksana (kolom Nomor, filter nama jabatan & jenjang, pagination, nama jabatan umum, data pelaksana dari data pegawai), menu SOP Kementerian → Dokumen Kepegawaian, riwayat diklat wajib upload sertifikat, pencarian cuti khusus Admin Bagian & Super Admin |
 | `1.0.1` | 28 Sep 2026 | Paritas filter ASN↔Direktori, analis jabatan fungsional/struktural mengenali semua jabatan + pemangku, kop form cuti format resmi |
@@ -922,3 +924,77 @@ per Unit Kerja** (jenis × unit × jenjang) tetap tersedia sebagai pendukung.
 **Deploy:** `php artisan migrate` (1 migrasi baru: tabel `position_maps`), lalu
 muat berkas **KERTAS KERJA EXCEL.xlsx** melalui menu **Peta Jabatan → Import
 Excel**. Uji otomatis: `php artisan test --filter=UpdateNovember7Test`.
+
+---
+
+## 🚀 Update 19 November 2026 (v1.2.0) — Catatan Masukan 19 Nov 2026
+
+### 1. Data Jabatan Struktural — variasi nama jabatan digabung ke nama umum
+Baris jabatan struktural kini **digabungkan per nama jabatan umum**: seluruh
+variasi nama (mis. *"Direktur Pengembangan …"*, *"Direktur Pembinaan …"*) terhitung
+dalam **satu baris "Direktur"** beserta seluruh pemangkunya — kode baris memakai
+master generik (mis. `STR-DIREKTUR`). Pola yang sama berlaku untuk Kepala Biro,
+Kepala Pusat, Kepala Bagian, dst. (modul `buildPositionAnalysis` mode *generic*
+kini melipat & menggabungkan, bukan sekadar menyaring). Awalan penugasan
+sementara **Plt. / Plh. / Pelaksana Tugas / Pelaksana Harian** ikut dilipat
+(`JabatanSyncService::genericJabatan`) sehingga *"Plt. Direktur …"* tidak pernah
+muncul sebagai baris terpisah.
+
+### 2. Peta Jabatan — filter baru "Unit Kerja (Eselon II)"
+Dropdown **Unit Kerja (Eselon II)** ditambahkan di samping filter Eselon I &
+Balai. Filter memuat **seluruh turunan** unit terpilih (bagian eselon III, dst.)
+sehingga tabel *Detail Sebaran per Unit Kerja* menampilkan pegawai pada biro /
+pusat / direktorat yang dipilih beserta unit di bawahnya. Filter ikut terbawa
+pada tombol Ekspor Excel.
+
+### 3. Menu baru "Pengajuan Layanan" (grup Layanan Kepegawaian)
+Formulir + daftar pengajuan layanan kepegawaian bagi **pegawai ASN**:
+- **Form Pengajuan Layanan** (di bagian atas halaman, lebar penuh): Unit Kerja
+  (dropdown), Nama yang Mengajukan (dropdown pegawai ASN — otomatis mengikuti
+  unit terpilih; akun pegawai biasa otomatis terisi dirinya), Jenis Layanan
+  (dropdown: **Kenaikan Gaji Berkala, Kenaikan Pangkat, Pemberhentian dan
+  Pensiun, Tugas / Izin Belajar, Pengembangan Kompetensi**), **Upload Nota
+  Dinas** (PDF/JPG/PNG maks 10 MB) dan **Link Bukti Dukung**, tombol **Kirim
+  Pengajuan**.
+- **Daftar Pengajuan** (di bawah form, revisi 21 Nov 2026): dibatasi **10 item
+  per halaman** (pagination), memuat
+  tanggal, pegawai, unit, jenis layanan, unduhan Nota Dinas, link bukti dukung,
+  status & catatan. Pegawai melihat pengajuannya sendiri; Admin Bagian / Biro
+  SDM / Super Admin melihat semua + filter jenis/status/unit/pencarian.
+- **Alur status**: Diajukan → Diproses → Selesai (dapat Ditolak dengan alasan
+  wajib). Nota Dinas hanya dapat diunduh pemilik & pengelola; notifikasi email
+  ke Administrator Utama mengikuti konfigurasi SMTP; seluruh aktivitas
+  tercatat di Audit Log. Tabel baru: `service_requests` (migrasi
+  `2026_11_19_000001`).
+
+### 4. Menu baru "Data Renang Pegawai" (grup Analisis Kepegawaian)
+Basis data: kemampuan renang **pegawai ASN saja** (kolom `swimming_skill`):
+- Filter pencarian: **Unit Kerja** & **Kemampuan Berenang** (Lulus / Belum
+  Lulus / Belum Diisi) dengan tombol **Cari** & **Reset**.
+- Card ringkasan: **Total Pegawai**, **Lulus Berenang** (+ persentase),
+  **Belum Lulus** (+ info jumlah yang belum mengisi data).
+- Statistik **Rekapitulasi Kemampuan Renang per Unit Kerja** — bar ganda
+  (lulus vs belum) per unit, mengikuti filter aktif.
+- **Daftar Data Renang Pegawai**: nama, NIP, unit kerja, jabatan & status
+  renang (pagination 15/halaman).
+
+### 5. Modul "Biro OSDMRB" → "Analisis Kepegawaian"
+Grup menu sidebar berganti nama; seluruh modul analisis (Peta Jabatan, Data
+Jabatan Fungsional/Struktural/Pelaksana, Data Renang Pegawai) berada di bawahnya.
+
+### 6. Susunan menu sidebar baru
+```
+Data & Master          → Pegawai ASN · Pegawai Non ASN · Direktori Pegawai · Master Data
+Analisis Kepegawaian   → Peta Jabatan · Data Jabatan Fungsional · Data Jabatan Struktural
+                         · Data Jabatan Pelaksana · Data Renang Pegawai
+Layanan Kepegawaian    → Pengajuan Layanan · Pengajuan Cuti
+Pendukung              → Dokumen Kepegawaian · Struktur Organisasi
+Monitoring             → Audit Log & Pengunjung · Survei & Masukan
+```
+Menu opsional (Persuratan, Kearsipan, Reformasi Birokrasi, Manajemen Talenta,
+Diklat & Pengembangan) tetap dapat dinyalakan dari Pengaturan → Tampilan & Menu
+dan ditempatkan pada grup terkait.
+
+**Deploy:** `php artisan migrate --force` (1 migrasi baru: tabel
+`service_requests`) — tanpa seeder. Uji otomatis:
+`php artisan test --filter=UpdateNovember19Test`.

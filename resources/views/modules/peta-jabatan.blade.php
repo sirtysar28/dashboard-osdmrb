@@ -10,13 +10,14 @@
 @section('content')
 
 {{-- ================= FILTER =================
-     Filter unit kerja (eselon I & tingkat balai, beserta seluruh
-     turunannya) dan jenis jabatan fungsional. Kolom eksisting &
-     kesenjangan kertas kerja mengikuti filter ini. --}}
+     Filter unit kerja (eselon I, eselon II & tingkat balai, beserta
+     seluruh turunannya) dan jenis jabatan fungsional. Kolom eksisting &
+     kesenjangan kertas kerja mengikuti filter ini.
+     Filter "Unit Kerja (Eselon II)" — Catatan Masukan 19 Nov 2026. --}}
 <div class="filter-card mb-4">
     <form method="GET" action="{{ route('modules.peta-jabatan') }}">
         <div class="row g-2">
-            <div class="col-lg-4 col-md-4 col-12">
+            <div class="col-xl-3 col-lg-6 col-12">
                 <label>Unit Kerja (Eselon I)</label>
                 <select name="es1" class="form-select form-select-sm">
                     <option value="">Semua Unit Kerja</option>
@@ -27,7 +28,18 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-lg-4 col-md-4 col-12">
+            <div class="col-xl-3 col-lg-6 col-12">
+                <label>Unit Kerja (Eselon II)</label>
+                <select name="es2" class="form-select form-select-sm">
+                    <option value="">Semua Unit Kerja</option>
+                    @foreach ($filterOptions['es2List'] as $unit)
+                        <option value="{{ $unit->id }}" {{ (string) ($filters['es2'] ?? '') === (string) $unit->id ? 'selected' : '' }}>
+                            {{ $unit->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-12">
                 <label>Unit Kerja Balai</label>
                 <select name="balai" class="form-select form-select-sm">
                     <option value="">Semua Balai</option>
@@ -38,7 +50,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-lg-4 col-md-4 col-12">
+            <div class="col-xl-3 col-lg-6 col-12">
                 <label>Jabatan Fungsional</label>
                 <select name="jabatan" class="form-select form-select-sm">
                     <option value="">Semua Jenis Jabatan</option>
@@ -68,9 +80,9 @@
         <div class="stat-card">
             <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
             <div>
-                <span>Pemangku Jabatan Eksisting</span>
+                <span><strong>Pemangku Jabatan Eksisting</strong></span>
                 <h2>{{ number_format($summary['existing']) }}</h2>
-                <small>dihitung dari data pegawai aktif</small>
+                <small>Sumber Kertas Kerja Peta Jabatan</small>
             </div>
         </div>
     </div>
@@ -78,19 +90,19 @@
         <div class="stat-card">
             <div class="stat-icon accent"><i class="bi bi-clipboard2-check"></i></div>
             <div>
-                <span>Kebutuhan Pegawai</span>
+                <span><strong>Kebutuhan Pegawai</strong></span>
                 <h2>{{ number_format($summary['required']) }}</h2>
-                <small>total formasi pada kertas kerja</small>
+                <small>Total Formasi pada Kertas Kerja</small>
             </div>
         </div>
     </div>
     <div class="col-xl-3 col-md-6">
         <div class="stat-card">
-            <div class="stat-icon"><i class="bi bi-graph-down-arrow"></i></div>
+            <div class="stat-icon danger"><i class="bi bi-graph-down-arrow"></i></div>
             <div>
-                <span>Total Kekurangan</span>
+                <span><strong>Total Kekurangan</strong></span>
                 <h2>{{ number_format($summary['shortage']) }}</h2>
-                <small>kesenjangan jumlah belum terpenuhi</small>
+                <small>Jumlah Kesenjangan</small>
             </div>
         </div>
     </div>
@@ -98,9 +110,9 @@
         <div class="stat-card">
             <div class="stat-icon success"><i class="bi bi-diagram-3"></i></div>
             <div>
-                <span>Jabatan Terpetakan</span>
+                <span><strong>Jabatan Terpetakan</strong></span>
                 <h2>{{ number_format($summary['rows']) }}</h2>
-                <small>baris jabatan &amp; jenjang kertas kerja</small>
+                <small>Jabatan &amp; Jenjang Kertas Kerja</small>
             </div>
         </div>
     </div>
@@ -108,21 +120,21 @@
 
 {{-- ================= GRAFIK EKSISTING vs KEBUTUHAN ================= --}}
 <div class="row g-3 mb-4">
-    <div class="col-lg-7">
+    <div class="col-lg-8">
         <div class="chart-card h-100">
             <h5><i class="bi bi-bar-chart-line me-2"></i>Jabatan Fungsional — Eksisting vs Kebutuhan</h5>
-            <div class="chart-wrap" style="height:420px"><canvas id="petaJabatanChart"></canvas></div>
-            <small class="text-muted d-block mt-2">12 jenis jabatan fungsional dengan jumlah pegawai eksisting terbanyak sesuai filter.</small>
+            <div class="chart-wrap" style="height:450px"><canvas id="petaJabatanChart"></canvas></div>
+            <small class="text-muted d-block mt-2">Jenis jabatan fungsional dengan jumlah pegawai eksisting terbanyak sesuai filter.</small>
         </div>
     </div>
 
     {{-- ================= REKOMENDASI & STRATEGI ================= --}}
-    <div class="col-lg-5">
+    <div class="col-lg-4">
         <div class="chart-card h-100">
             <h5><i class="bi bi-lightbulb me-2"></i>Rekomendasi</h5>
             <p class="small text-muted">
-                Kolom <strong>Pemangku Jabatan Eksisting</strong> dan <strong>Kesenjangan Jumlah</strong> dihitung
-                <strong>langsung dari data pegawai aktif</strong> mengikuti filter unit kerja, sehingga selalu mutakhir.
+                Kolom <strong>Kesenjangan Jumlah</strong> dihitung
+                <strong>langsung dari perhitungan Pemangku jabatan eksisiting - Kebutuhan Jabatan </strong> mengikuti filter unit kerja, sehingga selalu mutakhir.
                 Atribut kertas kerja (dukungan lintas program, intervensi 5 T, kualifikasi pendidikan, kompetensi,
                 kebutuhan, alternatif pemenuhan &amp; rekomendasi utama) dikelola melalui import Excel.
             </p>
@@ -138,9 +150,9 @@
 </div>
 
 {{-- ================= TABEL KERTAS KERJA PETA JABATAN =================
-     Format persis KERTAS KERJA EXCEL — 10 kolom + No. Kolom eksisting &
-     kesenjangan dihitung langsung dari data pegawai (fallback: angka
-     snapshot berkas bila jabatan belum ada pemangkunya di data pegawai). --}}
+     Format persis KERTAS KERJA EXCEL — 10 kolom + No, 15 baris per halaman.
+     Isi tabel = persis hasil import (replace), kolom eksisting & kesenjangan
+     dihitung langsung dari data pegawai aktif. --}}
 <div class="table-card mb-4">
     <div class="card-header-custom flex-wrap gap-2">
         <h5 class="mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Kertas Kerja Peta Jabatan</h5>
@@ -180,17 +192,12 @@
             </thead>
             <tbody>
                 @forelse ($kertasKerja as $row)
-                    <tr class="{{ $row->outside ? 'table-warning' : '' }}">
-                        <td class="text-center text-muted">{{ $loop->iteration }}</td>
+                    <tr>
+                        <td class="text-center text-muted">{{ $kertasKerja->firstItem() + $loop->iteration - 1 }}</td>
                         <td class="fw-semibold">
                             {{ $row->jenis }}
                             @if ($row->jenjang)
                                 <span class="badge bg-primary-subtle text-primary-emphasis ms-1">{{ $row->jenjang }}</span>
-                            @endif
-                            @if ($row->outside)
-                                <div class="small text-warning-emphasis mt-1">
-                                    <i class="bi bi-exclamation-triangle"></i> Belum dipetakan di kertas kerja
-                                </div>
                             @endif
                         </td>
                         <td class="small"><div class="kk-text">{{ $row->cross_program ?: '-' }}</div></td>
@@ -198,12 +205,7 @@
                         <td class="small"><div class="kk-text">{{ $row->education_qualification ?: '-' }}</div></td>
                         <td class="small"><div class="kk-text">{{ $row->competency ?: '-' }}</div></td>
                         <td class="text-center fw-semibold">{{ $row->required !== null ? number_format($row->required) : '-' }}</td>
-                        <td class="text-center fw-semibold">
-                            {{ number_format($row->existing) }}
-                            @if ($row->existing_from_snapshot)
-                                <div class="small text-muted fw-normal">data kertas kerja</div>
-                            @endif
-                        </td>
+                        <td class="text-center fw-semibold">{{ number_format($row->existing) }}</td>
                         <td class="text-center">
                             @if ($row->gap === null)
                                 <span class="text-muted">-</span>
@@ -219,30 +221,27 @@
                         <td class="small"><div class="kk-text">{{ $row->main_recommendation ?: '-' }}</div></td>
                         @if ($canManageKk)
                             <td class="text-center">
-                                @if ($row->id)
-                                    <div class="d-flex gap-1 justify-content-center">
-                                        <button type="button" class="btn btn-sm btn-outline-osdmrb" title="Ubah baris"
-                                                data-bs-toggle="modal" data-bs-target="#editKertasKerjaModal"
-                                                data-kk-action="{{ route('modules.peta-jabatan.update', $row->id) }}"
-                                                data-kk-name="{{ $row->name }}"
-                                                data-kk-cross="{{ $row->cross_program }}"
-                                                data-kk-intervensi="{{ $row->program_intervention }}"
-                                                data-kk-kualifikasi="{{ $row->education_qualification }}"
-                                                data-kk-kompetensi="{{ $row->competency }}"
-                                                data-kk-kebutuhan="{{ $row->required }}"
-                                                data-kk-alternatif="{{ $row->fulfillment_alternative }}"
-                                                data-kk-rekomendasi="{{ $row->main_recommendation }}">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                        <form action="{{ route('modules.peta-jabatan.destroy', $row->id) }}" method="POST" class="d-inline"
-                                              onsubmit="return confirm('Hapus baris kertas kerja &quot;{{ $row->name }}&quot;?')">
-                                            @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger" title="Hapus baris"><i class="bi bi-trash"></i></button>
-                                        </form>
-                                    </div>
-                                @else
-                                    <span class="text-muted" title="Baris di luar kertas kerja — tidak dapat diubah">-</span>
-                                @endif
+                                <div class="d-flex gap-1 justify-content-center">
+                                    <button type="button" class="btn btn-sm btn-outline-osdmrb" title="Ubah baris"
+                                            data-bs-toggle="modal" data-bs-target="#editKertasKerjaModal"
+                                            data-kk-action="{{ route('modules.peta-jabatan.update', $row->id) }}"
+                                            data-kk-name="{{ $row->name }}"
+                                            data-kk-cross="{{ $row->cross_program }}"
+                                            data-kk-intervensi="{{ $row->program_intervention }}"
+                                            data-kk-kualifikasi="{{ $row->education_qualification }}"
+                                            data-kk-kompetensi="{{ $row->competency }}"
+                                            data-kk-kebutuhan="{{ $row->required }}"
+                                            data-kk-eksisting="{{ $row->existing }}"
+                                            data-kk-alternatif="{{ $row->fulfillment_alternative }}"
+                                            data-kk-rekomendasi="{{ $row->main_recommendation }}">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <form action="{{ route('modules.peta-jabatan.destroy', $row->id) }}" method="POST" class="d-inline"
+                                          onsubmit="return confirm('Hapus baris kertas kerja &quot;{{ $row->name }}&quot;?')">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger" title="Hapus baris"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </div>
                             </td>
                         @endif
                     </tr>
@@ -267,10 +266,14 @@
 
     <div class="px-3 py-2 small text-muted border-top">
         <i class="bi bi-info-circle me-1"></i>
-        Kolom <strong>Pemangku Jabatan Eksisting</strong> &amp; <strong>Kesenjangan Jumlah</strong> dihitung langsung
-        dari data pegawai aktif sesuai filter (kesenjangan = eksisting &minus; kebutuhan);
+        <strong>Pemangku Jabatan Eksisting</strong> dan <strong>Kebutuhan</strong> berasal dari position_maps;
+        kesenjangan = eksisting &minus; kebutuhan;
         tanda <span class="badge bg-danger-subtle text-danger-emphasis">merah</span> berarti kekurangan.
+        Menampilkan {{ $kertasKerja->firstItem() ? number_format($kertasKerja->firstItem()).'–'.number_format($kertasKerja->lastItem()) : 0 }}
+        dari {{ number_format($kertasKerja->total()) }} baris ({{ $kertasKerja->perPage() }} baris per halaman).
     </div>
+
+    <div class="mt-3 px-3">{{ $kertasKerja->links() }}</div>
 </div>
 
 {{-- ================= TABEL SEBARAN PER UNIT KERJA ================= --}}
@@ -346,8 +349,8 @@
                     <div class="alert alert-warning small mt-3 mb-0">
                         <i class="bi bi-exclamation-triangle me-1"></i>
                         Import <strong>mengganti seluruh data</strong> kertas kerja sebelumnya. Kolom
-                        Pemangku Jabatan Eksisting pada berkas hanya menjadi fallback — halaman tetap
-                        menghitungnya langsung dari data pegawai aktif.
+                        Pemangku Jabatan Eksisting dan Kebutuhan disimpan pada Kertas Kerja;
+                        kesenjangan dihitung dari selisih kedua nilai tersebut.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -366,8 +369,7 @@
     <div class="modal fade" id="editKertasKerjaModal" tabindex="-1" aria-hidden="true"
          aria-labelledby="editKertasKerjaModalTitle">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <form method="POST" id="formEditKertasKerja">
+            <form method="POST" id="formEditKertasKerja" class="modal-content">
                     @csrf @method('PUT')
                     <div class="modal-header">
                         <h5 class="modal-title" id="editKertasKerjaModalTitle">
@@ -402,11 +404,15 @@
                                 <label class="form-label small fw-semibold">Kebutuhan</label>
                                 <input type="number" name="required_count" min="0" max="65535" class="form-control form-control-sm">
                             </div>
-                            <div class="col-md-8 d-flex align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Pemangku Jabatan Eksisting</label>
+                                <input type="number" name="existing_count" min="0" max="65535"
+                                       step="1" required class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
                                 <div class="alert alert-info small mb-0 py-2 w-100">
                                     <i class="bi bi-info-circle me-1"></i>
-                                    Kolom <strong>Pemangku Jabatan Eksisting</strong> &amp; <strong>Kesenjangan Jumlah</strong>
-                                    dihitung otomatis dari data pegawai aktif — tidak diubah manual.
+                                    Kesenjangan dihitung: <strong>Eksisting - Kebutuhan.</strong>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -425,13 +431,26 @@
                             <i class="bi bi-save"></i> Simpan Perubahan
                         </button>
                     </div>
-                </form>
-            </div>
+            </form>
         </div>
     </div>
 @endif
 
 <style>
+    /* Modal edit: header/footer tetap terlihat, hanya isi formulir yang scroll */
+    #editKertasKerjaModal .modal-content {
+        max-height: calc(100dvh - 2rem);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #editKertasKerjaModal .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
     /* Teks panjang kertas kerja: dibatasi 3 baris, klik untuk bentangkan */
     .peta-jabatan-kk .kk-text {
         white-space: pre-line;
@@ -472,6 +491,7 @@
                 form.querySelector('[name="education_qualification"]').value = btn.getAttribute('data-kk-kualifikasi') || '';
                 form.querySelector('[name="competency"]').value = btn.getAttribute('data-kk-kompetensi') || '';
                 form.querySelector('[name="required_count"]').value = btn.getAttribute('data-kk-kebutuhan') || '';
+                form.querySelector('[name="existing_count"]').value = btn.getAttribute('data-kk-eksisting') ?? '0';
                 form.querySelector('[name="fulfillment_alternative"]').value = btn.getAttribute('data-kk-alternatif') || '';
                 form.querySelector('[name="main_recommendation"]').value = btn.getAttribute('data-kk-rekomendasi') || '';
             });
@@ -496,20 +516,40 @@
             type: 'bar',
             data: {
                 labels: chart.map((r) => r.label),
-                datasets: [
-                    {
-                        label: 'Pegawai Eksisting',
-                        data: chart.map((r) => r.existing),
-                        backgroundColor: themePrimary,
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Kebutuhan (Kertas Kerja)',
-                        data: chart.map((r) => r.required),
-                        backgroundColor: '#e8a13c',
-                        borderRadius: 4
-                    }
-                ]
+            datasets: [
+                {
+                    label: 'Pegawai Eksisting',
+                    data: chart.map(r => r.existing),
+                    // backgroundColor: '#0EA5E9',
+                    backgroundColor: themePrimary,
+                    // hoverBackgroundColor: '#0284C7',
+                    hoverBackgroundColor: themePrimary,
+                    borderRadius: 6,
+                    barThickness: 12,
+                    maxBarThickness: 16
+                },
+                {
+                    label: 'Kebutuhan (Kertas Kerja)',
+                    data: chart.map(r => r.required),
+                    backgroundColor: '#34D399',
+                    hoverBackgroundColor: '#10B981',
+                    borderRadius: 6,
+                    barThickness: 12,
+                    maxBarThickness: 16
+                },
+                {
+                    label: 'Kesenjangan Jumlah',
+                    data: chart.map(r => r.gap),
+                    // backgroundColor: '#FBBF24',
+                    // hoverBackgroundColor: '#F59E0B',
+                    backgroundColor: '#F43F5E',
+                    hoverBackgroundColor: '#E11D48',
+                    borderRadius: 6,
+                    barThickness: 12,
+                    maxBarThickness: 16
+                }
+            ]
+
             },
             options: {
                 responsive: true,

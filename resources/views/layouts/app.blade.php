@@ -132,8 +132,16 @@
                     </a>
                 @endif
 
-                <div class="sidebar-section mt-2">Modul Biro OSDMRB</div>
+                {{-- Catatan Masukan 19 Nov 2026: susunan menu baru —
+                     "Modul Biro OSDMRB" diganti "Analisis Kepegawaian";
+                     Peta Jabatan didahulukan, lalu Data Jabatan Fungsional /
+                     Struktural / Pelaksana + menu baru Data Renang Pegawai. --}}
+                <div class="sidebar-section mt-2">Analisis Kepegawaian</div>
 
+                <a href="{{ route('modules.peta-jabatan') }}"
+                   class="menu-item {{ request()->routeIs('modules.peta-jabatan*') ? 'active' : '' }}">
+                    <i class="bi bi-map"></i><span>Peta Jabatan</span>
+                </a>
                 {{-- Catatan 21 Okt 2026: menu ber-kata "Analisis" diganti "Data" --}}
                 <a href="{{ route('modules.analisis-jabatan') }}"
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan') ? 'active' : '' }}">
@@ -147,40 +155,20 @@
                    class="menu-item {{ request()->routeIs('modules.analisis-jabatan-pelaksana') ? 'active' : '' }}">
                     <i class="bi bi-person-lines-fill"></i><span>Data Jabatan Pelaksana</span>
                 </a>
-                <a href="{{ route('modules.peta-jabatan') }}"
-                   class="menu-item {{ request()->routeIs('modules.peta-jabatan*') ? 'active' : '' }}">
-                    <i class="bi bi-map"></i><span>Peta Jabatan</span>
+                {{-- Data Renang Pegawai — Catatan Masukan 19 Nov 2026 --}}
+                <a href="{{ route('renang.index') }}"
+                   class="menu-item {{ request()->routeIs('renang.*') ? 'active' : '' }}">
+                    <i class="bi bi-water"></i><span>Data Renang Pegawai</span>
                 </a>
-                @if(\App\Models\Setting::menuVisible('reformasi_birokrasi'))
-                    <a href="{{ route('modules.reformasi-birokrasi') }}"
-                       class="menu-item {{ request()->routeIs('modules.reformasi-birokrasi') ? 'active' : '' }}">
-                        <i class="bi bi-arrow-repeat"></i><span>Reformasi Birokrasi</span>
-                    </a>
-                @endif
-                @if(\App\Models\Setting::menuVisible('manajemen_talenta'))
-                    <a href="{{ route('modules.manajemen-talenta') }}"
-                       class="menu-item {{ request()->routeIs('modules.manajemen-talenta') ? 'active' : '' }}">
-                        <i class="bi bi-stars"></i><span>Manajemen Talenta</span>
-                    </a>
-                @endif
-                @if(\App\Models\Setting::menuVisible('diklat'))
-                    <a href="{{ route('modules.diklat') }}"
-                       class="menu-item {{ request()->routeIs('modules.diklat') ? 'active' : '' }}">
-                        <i class="bi bi-mortarboard"></i><span>Diklat &amp; Pengembangan</span>
-                    </a>
-                @endif
-                <a href="{{ route('modules.sop') }}"
-                   class="menu-item {{ request()->routeIs('modules.sop') ? 'active' : '' }}">
-                    <i class="bi bi-journal-text"></i><span>Dokumen Kepegawaian</span>
-                </a>
-                <a href="{{ route('modules.struktur') }}"
-                   class="menu-item {{ request()->routeIs('modules.struktur') ? 'active' : '' }}">
-                    <i class="bi bi-diagram-3"></i><span>Struktur Organisasi</span>
-                </a>
+                {{-- Grup "Layanan Kepegawaian" — Catatan 19 Nov 2026:
+                     Pengajuan Layanan (baru) & Pengajuan Cuti. --}}
+                <div class="sidebar-section mt-2">Layanan Kepegawaian</div>
 
-                @if($menuLetters || $menuArchives || $menuCuti)
-                    <div class="sidebar-section mt-2">Layanan Kepegawaian</div>
-                @endif
+                {{-- Pengajuan Layanan — Catatan Masukan 19 Nov 2026 --}}
+                <a href="{{ route('layanan.index') }}"
+                   class="menu-item {{ request()->routeIs('layanan.*') ? 'active' : '' }}">
+                    <i class="bi bi-box-arrow-in-up"></i><span>Pengajuan Layanan</span>
+                </a>
 
                 @if($menuCuti)
                     <a href="{{ route('leaves.index') }}"
@@ -216,6 +204,38 @@
                     <a href="{{ route('letter-types.index') }}"
                        class="menu-item {{ request()->routeIs('letter-types.*') ? 'active' : '' }}">
                         <i class="bi bi-collection"></i><span>Jenis Surat</span>
+                    </a>
+                @endif
+
+                {{-- Grup "Pendukung" — Catatan 19 Nov 2026: Dokumen Kepegawaian
+                     & Struktur Organisasi; modul opsional lain menyusul di bawah. --}}
+                <div class="sidebar-section mt-2">Pendukung</div>
+
+                <a href="{{ route('modules.sop') }}"
+                   class="menu-item {{ request()->routeIs('modules.sop*') ? 'active' : '' }}">
+                    <i class="bi bi-journal-text"></i><span>Dokumen Kepegawaian</span>
+                </a>
+                <a href="{{ route('modules.struktur') }}"
+                   class="menu-item {{ request()->routeIs('modules.struktur') ? 'active' : '' }}">
+                    <i class="bi bi-diagram-3"></i><span>Struktur Organisasi</span>
+                </a>
+
+                @if(\App\Models\Setting::menuVisible('reformasi_birokrasi'))
+                    <a href="{{ route('modules.reformasi-birokrasi') }}"
+                       class="menu-item {{ request()->routeIs('modules.reformasi-birokrasi') ? 'active' : '' }}">
+                        <i class="bi bi-arrow-repeat"></i><span>Reformasi Birokrasi</span>
+                    </a>
+                @endif
+                @if(\App\Models\Setting::menuVisible('manajemen_talenta'))
+                    <a href="{{ route('modules.manajemen-talenta') }}"
+                       class="menu-item {{ request()->routeIs('modules.manajemen-talenta') ? 'active' : '' }}">
+                        <i class="bi bi-stars"></i><span>Manajemen Talenta</span>
+                    </a>
+                @endif
+                @if(\App\Models\Setting::menuVisible('diklat'))
+                    <a href="{{ route('modules.diklat') }}"
+                       class="menu-item {{ request()->routeIs('modules.diklat') ? 'active' : '' }}">
+                        <i class="bi bi-mortarboard"></i><span>Diklat &amp; Pengembangan</span>
                     </a>
                 @endif
 

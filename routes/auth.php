@@ -16,7 +16,8 @@ Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->middleware('throttle:5,10'); // anti-spam: maks 5 pendaftaran / 10 menit per IP
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

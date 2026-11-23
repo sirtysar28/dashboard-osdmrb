@@ -69,6 +69,35 @@
                     </ul>
                 </div>
             </div>
+
+            {{-- Filter status persetujuan pendaftaran --}}
+            <div class="px-3 pt-3">
+                <div class="d-flex flex-wrap gap-2">
+                    @php
+                        $tabs = [
+                            'all' => ['Semua', 'bi-people'],
+                            'pending' => ['Menunggu Persetujuan', 'bi-hourglass-split'],
+                            'approved' => ['Disetujui', 'bi-check-circle'],
+                            'rejected' => ['Ditolak', 'bi-x-circle'],
+                        ];
+                    @endphp
+                    @foreach ($tabs as $key => [$label, $icon])
+                        <a href="{{ route('users.index', array_filter(['status' => $key !== 'all' ? $key : null])) }}"
+                           class="btn btn-sm {{ $statusFilter === $key ? 'btn-osdmrb' : 'btn-outline-osdmrb' }} {{ $key === 'pending' && $statusFilter !== 'pending' && $statusCounts['pending'] > 0 ? 'fw-bold' : '' }}">
+                            <i class="bi {{ $icon }} me-1"></i>{{ $label }}
+                            <span class="badge {{ $statusFilter === $key ? 'bg-white text-dark' : 'bg-secondary' }} ms-1">{{ $statusCounts[$key] }}</span>
+                        </a>
+                    @endforeach
+                </div>
+                @if ($statusCounts['pending'] > 0)
+                    <div class="alert alert-warning py-2 small mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Terdapat <strong>{{ $statusCounts['pending'] }}</strong> pendaftar menunggu persetujuan.
+                        Akun tersebut <strong>tidak dapat login</strong> sampai Anda menyetujui pendaftarannya.
+                    </div>
+                @endif
+            </div>
+
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead>
@@ -77,7 +106,7 @@
                     <tbody>
                         @foreach ($users as $user)
                             @php($canResetPassword = $user->hasRole('pegawai') || auth()->user()->isSuperAdmin())
-                            <tr>
+                            <tr class="{{ $user->isPendingApproval() ? 'table-warning' : '' }}">
                                 <td class="fw-semibold">{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
                                 <td class="small">{{ $user->employee?->name ?? '-' }}</td>
@@ -87,11 +116,36 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge {{ $user->is_active ? 'bg-success' : 'bg-secondary' }}">
-                                        {{ $user->is_active ? 'Aktif' : 'Non-aktif' }}
-                                    </span>
+                                    @if ($user->isPendingApproval())
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-hourglass-split me-1"></i>Menunggu Persetujuan
+                                        </span>
+                                    @elseif ($user->isRejected())
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Ditolak
+                                        </span>
+                                    @else
+                                        <span class="badge {{ $user->is_active ? 'bg-success' : 'bg-secondary' }}">
+                                            {{ $user->is_active ? 'Aktif' : 'Non-aktif' }}
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="text-center text-nowrap">
+                                    @if (($user->isPendingApproval() || $user->isRejected()) && $user->id !== auth()->id())
+                                        @if ($user->isPendingApproval())
+                                            <form action="{{ route('users.approve', $user) }}" method="POST" class="d-inline"
+                                                  onsubmit="return confirm('Setujui pendaftaran akun {{ $user->name }}? Akun akan langsung aktif dan dapat login.')">
+                                                @csrf
+                                                <button class="btn btn-sm btn-outline-success" title="Setujui Pendaftaran">
+                                                    <i class="bi bi-check-lg"></i> Setujui
+                                                </button>
+                                            </form>
+                                        @endif
+                                        <button class="btn btn-sm btn-outline-danger" title="Tolak Pendaftaran"
+                                                data-bs-toggle="modal" data-bs-target="#rejectUser{{ $user->id }}">
+                                            <i class="bi bi-x-lg"></i> Tolak
+                                        </button>
+                                    @endif
                                     @if ($canResetPassword && $user->id !== auth()->id())
                                         <button class="btn btn-sm btn-outline-warning" title="Reset Password"
                                                 data-bs-toggle="modal" data-bs-target="#resetPassword{{ $user->id }}">
@@ -123,6 +177,47 @@
 {{-- Modals ubah pengguna --}}
 @foreach ($users as $user)
     @php($canResetPassword = $user->hasRole('pegawai') || auth()->user()->isSuperAdmin())
+
+    {{-- Modal tolak pendaftaran --}}
+    @if (($user->isPendingApproval() || $user->isRejected()) && $user->id !== auth()->id())
+        <div class="modal fade" id="rejectUser{{ $user->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 14px">
+                    <form method="POST" action="{{ route('users.reject', $user) }}">
+                        @csrf
+
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold" style="font-size: 15px; color: #143647">
+                                <i class="bi bi-x-circle me-1"></i> Tolak Pendaftaran
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <p class="small text-muted">
+                                Tolak pendaftaran akun <strong>{{ $user->name }}</strong> ({{ $user->email }})?
+                                Akun tidak akan dapat login dan pendaftar akan menerima email pemberitahuan.
+                            </p>
+                            <div class="mb-3">
+                                <label class="form-label">Alasan (opsional)</label>
+                                <textarea name="reason" class="form-control" rows="3" maxlength="500"
+                                          placeholder="Contoh: data tidak sesuai pegawai Biro OSDMRB"></textarea>
+                                <div class="form-text">Alasan akan disertakan pada email pemberitahuan ke pendaftar.</div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-danger btn-sm px-4">
+                                <i class="bi bi-x-lg"></i> Tolak Pendaftaran
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="modal fade" id="editUser{{ $user->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 14px">

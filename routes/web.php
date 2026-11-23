@@ -14,6 +14,8 @@ use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\PetaJabatanController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RenangController;
+use App\Http\Controllers\ServiceRequestController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\UserController;
@@ -80,6 +82,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/modul/peta-jabatan', [PetaJabatanController::class, 'index'])->name('modules.peta-jabatan');
         Route::get('/modul/peta-jabatan/export', [PetaJabatanController::class, 'export'])->name('modules.peta-jabatan.export');
 
+        // Data Renang Pegawai — kemampuan renang pegawai ASN
+        // (Catatan Masukan 19 Nov 2026 — grup "Analisis Kepegawaian")
+        Route::get('/data-renang', [RenangController::class, 'index'])->name('renang.index');
+
         // Kertas kerja peta jabatan: import Excel & unduh template
         // (Point 4, 7 Nov 2026 — Admin Bagian, Biro SDM & Super Admin)
         Route::middleware('role:admin,biro_sdm,super_admin')->group(function () {
@@ -138,6 +144,20 @@ Route::middleware('auth')->group(function () {
         // SOP Kementerian
         Route::post('/modul/sop-kementerian', [ModuleController::class, 'sopStore'])->name('modules.sop.store');
         Route::delete('/modul/sop-kementerian/{sop}', [ModuleController::class, 'sopDestroy'])->name('modules.sop.destroy');
+    });
+
+    /* ================= PENGAJUAN LAYANAN KEPEGAWAIAN (Catatan Masukan 19 Nov 2026) =================
+       Menu baru grup "Layanan Kepegawaian": form pengajuan (Kenaikan Gaji
+       Berkala, Kenaikan Pangkat, Pemberhentian & Pensiun, Tugas/Izin Belajar,
+       Pengembangan Kompetensi) + daftar pengajuan 10 item per halaman. */
+    Route::middleware('role:pegawai,admin,biro_sdm,super_admin')->group(function () {
+        Route::get('/layanan', [ServiceRequestController::class, 'index'])->name('layanan.index');
+        Route::post('/layanan', [ServiceRequestController::class, 'store'])->name('layanan.store');
+        Route::get('/layanan/{service_request}/nota-dinas', [ServiceRequestController::class, 'download'])->name('layanan.nota');
+        Route::post('/layanan/{service_request}/proses', [ServiceRequestController::class, 'process'])->name('layanan.process');
+        Route::post('/layanan/{service_request}/selesai', [ServiceRequestController::class, 'complete'])->name('layanan.complete');
+        Route::post('/layanan/{service_request}/tolak', [ServiceRequestController::class, 'reject'])->name('layanan.reject');
+        Route::delete('/layanan/{service_request}', [ServiceRequestController::class, 'destroy'])->name('layanan.destroy');
     });
 
     /* ================= PENGAJUAN CUTI (bisa diaktifkan/nonaktifkan dari Pengaturan) =================
@@ -316,6 +336,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/pengguna/export', [UserController::class, 'export'])->name('users.export');
         Route::post('/pengguna', [UserController::class, 'store'])->name('users.store');
         Route::put('/pengguna/{user}', [UserController::class, 'update'])->name('users.update');
+        // Persetujuan pendaftar mandiri (akun baru tidak bisa login sebelum disetujui)
+        Route::post('/pengguna/{user}/setujui', [UserController::class, 'approve'])->name('users.approve');
+        Route::post('/pengguna/{user}/tolak', [UserController::class, 'reject'])->name('users.reject');
         // Admin Bagian hanya boleh reset password akun berperan Pegawai
         Route::put('/pengguna/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::delete('/pengguna/{user}', [UserController::class, 'destroy'])->name('users.destroy');
