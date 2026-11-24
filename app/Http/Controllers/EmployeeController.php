@@ -314,7 +314,12 @@ class EmployeeController extends Controller
     {
         $employee = Employee::find($request->user()->employee_id);
 
-        abort_unless($employee, 404, 'Akun Anda belum terhubung dengan data pegawai. Hubungi admin instansi.');
+        // Akun belum terhubung data pegawai: JANGAN 404 — tampilkan halaman
+        // pemberitahuan yang ramah beserta tombol kembali (agar pegawai baru
+        // tidak menemukan halaman "Not Found" polos).
+        if (! $employee) {
+            return view('employees.unlinked');
+        }
 
         $employee->load(['unit', 'education', 'rank', 'employmentStatus',
             'positions.position.positionType', 'positions.position.jobLevel', 'positions.unit',
